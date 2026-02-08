@@ -24,11 +24,35 @@ final class bingeableUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        // UI tests must launch the application that they test.
         let app = XCUIApplication()
         app.launch()
+        continueAsGuestIfNeeded(app)
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        let heroCard = app.buttons["discover-hero-card"]
+        XCTAssertTrue(heroCard.waitForExistence(timeout: 10))
+
+        XCTAssertTrue(app.otherElements["discover-section-trending"].exists)
+        XCTAssertTrue(app.otherElements["discover-section-popular"].exists)
+
+        let savePredicate = NSPredicate(format: "identifier BEGINSWITH %@", "discover-save-")
+        let saveButton = app.buttons.matching(savePredicate).firstMatch
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 10))
+        saveButton.tap()
+
+        let cardPredicate = NSPredicate(format: "identifier BEGINSWITH %@", "discover-card-")
+        let card = app.buttons.matching(cardPredicate).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+
+        XCTAssertTrue(app.otherElements["detail-library-section"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.otherElements["detail-providers-section"].exists)
+    }
+
+    private func continueAsGuestIfNeeded(_ app: XCUIApplication) {
+        let continueAsGuestButton = app.buttons["Continue as Guest"]
+        if continueAsGuestButton.waitForExistence(timeout: 3) {
+            continueAsGuestButton.tap()
+        }
     }
 
     @MainActor
