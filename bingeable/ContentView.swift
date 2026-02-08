@@ -1,24 +1,40 @@
-//
-//  ContentView.swift
-//  bingeable
-//
-//  Created by cvalle on 2/8/26.
-//
-
 import SwiftUI
+import SwiftData
+import Combine
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        LaunchGateView()
     }
 }
 
 #Preview {
-    ContentView()
+    ContentPreviewRoot()
+}
+
+@MainActor
+private final class PreviewDependencies: ObservableObject {
+    let appContainer: AppContainer
+    let modelContainer: ModelContainer
+    let libraryStore: LibraryStore
+
+    init() {
+        self.appContainer = AppContainer()
+
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        self.modelContainer = try! ModelContainer(for: TrackedShowEntity.self, configurations: config)
+        self.libraryStore = LibraryStore(context: modelContainer.mainContext)
+    }
+}
+
+private struct ContentPreviewRoot: View {
+    @StateObject private var deps = PreviewDependencies()
+
+    var body: some View {
+        ContentView()
+            .environmentObject(deps.appContainer)
+            .environmentObject(deps.appContainer.sessionManager)
+            .environmentObject(deps.libraryStore)
+            .modelContainer(deps.modelContainer)
+    }
 }
