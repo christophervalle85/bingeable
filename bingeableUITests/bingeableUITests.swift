@@ -24,9 +24,7 @@ final class bingeableUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        let app = XCUIApplication()
-        app.launch()
-        continueAsGuestIfNeeded(app)
+        let app = launchDiscoverApp()
 
         let heroCard = app.buttons["discover-hero-card"]
         XCTAssertTrue(heroCard.waitForExistence(timeout: 10))
@@ -46,6 +44,78 @@ final class bingeableUITests: XCTestCase {
 
         XCTAssertTrue(app.otherElements["detail-library-section"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.otherElements["detail-providers-section"].exists)
+    }
+
+    @MainActor
+    func testDiscoverVerticalScrollFromHeroDoesNotLock() throws {
+        let app = launchDiscoverApp()
+
+        let heroCarousel = app.otherElements["discover-hero-carousel"]
+        XCTAssertTrue(heroCarousel.waitForExistence(timeout: 10))
+
+        let initialHeroY = heroCarousel.frame.minY
+
+        for _ in 0..<4 {
+            dragUp(on: heroCarousel, distance: 240)
+        }
+
+        XCTAssertLessThan(heroCarousel.frame.minY, initialHeroY - 80)
+        XCTAssertTrue(app.otherElements["discover-section-soon"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testDiscoverVerticalScrollFromRailDoesNotLock() throws {
+        let app = launchDiscoverApp()
+
+        let heroCarousel = app.otherElements["discover-hero-carousel"]
+        XCTAssertTrue(heroCarousel.waitForExistence(timeout: 10))
+        let trendingRail = app.otherElements["discover-rail-trending"]
+        XCTAssertTrue(trendingRail.waitForExistence(timeout: 10))
+
+        let initialHeroY = heroCarousel.frame.minY
+
+        for _ in 0..<4 {
+            dragUp(on: trendingRail, distance: 240)
+        }
+
+        XCTAssertLessThan(heroCarousel.frame.minY, initialHeroY - 80)
+        XCTAssertTrue(app.otherElements["discover-section-soon"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testDiscoverHorizontalRailStillScrollable() throws {
+        let app = launchDiscoverApp()
+
+        let trendingRail = app.otherElements["discover-rail-trending"]
+        XCTAssertTrue(trendingRail.waitForExistence(timeout: 10))
+
+        let cardPredicate = NSPredicate(format: "identifier BEGINSWITH %@", "discover-card-")
+        let firstCard = app.buttons.matching(cardPredicate).firstMatch
+        XCTAssertTrue(firstCard.waitForExistence(timeout: 10))
+
+        let initialX = firstCard.frame.minX
+        dragLeft(on: trendingRail, distance: 200)
+        XCTAssertLessThan(firstCard.frame.minX, initialX - 20)
+    }
+
+    private func launchDiscoverApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["DISCOVER_HERO_AUTOPLAY"] = "0"
+        app.launch()
+        continueAsGuestIfNeeded(app)
+        return app
+    }
+
+    private func dragUp(on element: XCUIElement, distance: CGFloat) {
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        let end = start.withOffset(CGVector(dx: 0, dy: -distance))
+        start.press(forDuration: 0.02, thenDragTo: end)
+    }
+
+    private func dragLeft(on element: XCUIElement, distance: CGFloat) {
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        let end = start.withOffset(CGVector(dx: -distance, dy: 0))
+        start.press(forDuration: 0.02, thenDragTo: end)
     }
 
     private func continueAsGuestIfNeeded(_ app: XCUIApplication) {

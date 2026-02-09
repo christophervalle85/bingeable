@@ -247,12 +247,22 @@ struct ShowDetailView: View {
         }
     }
 
+    private var platformBackgroundColor: Color {
+#if os(iOS)
+        return Color(uiColor: .systemBackground)
+#elseif os(macOS)
+        return Color(nsColor: .windowBackgroundColor)
+#else
+        return Color.white
+#endif
+    }
+
     private var background: some View {
         LinearGradient(
             colors: [
                 Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12),
                 Color.indigo.opacity(colorScheme == .dark ? 0.12 : 0.06),
-                Color(.systemBackground)
+                platformBackgroundColor
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

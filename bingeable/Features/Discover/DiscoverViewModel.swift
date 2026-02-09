@@ -270,21 +270,43 @@ final class DiscoverViewModel: ObservableObject {
 
         isHydratingDetails = true
 
+        var fetchedShows: [Int: Show] = [:]
+
         await withTaskGroup(of: Show?.self) { group in
-            for id in idsToFetch {
+            let maxConcurrent = min(6, idsToFetch.count)
+            var nextIndex = 0
+
+            while nextIndex < maxConcurrent {
+                let id = idsToFetch[nextIndex]
                 group.addTask {
                     try? await repository.showDetail(showID: id)
                 }
+                nextIndex += 1
             }
 
-            for await detailedShow in group {
+            while let detailedShow = await group.next() {
                 guard !Task.isCancelled else {
+                    group.cancelAll()
                     break
                 }
 
                 if let detailedShow {
-                    enrichedShowsByID[detailedShow.id] = detailedShow
+                    fetchedShows[detailedShow.id] = detailedShow
                 }
+
+                if nextIndex < idsToFetch.count {
+                    let id = idsToFetch[nextIndex]
+                    group.addTask {
+                        try? await repository.showDetail(showID: id)
+                    }
+                    nextIndex += 1
+                }
+            }
+        }
+
+        if !Task.isCancelled, !fetchedShows.isEmpty {
+            for (id, show) in fetchedShows {
+                enrichedShowsByID[id] = show
             }
         }
 

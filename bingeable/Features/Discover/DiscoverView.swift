@@ -5,15 +5,14 @@ struct DiscoverView: View {
     @EnvironmentObject private var libraryStore: LibraryStore
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel = DiscoverViewModel()
-    @State private var heroSelection = 1
-    @State private var lastHeroInteraction = Date()
-    @State private var heroLoopCorrectionTask: Task<Void, Never>?
 
     private var isInitialLoading: Bool {
         viewModel.isLoading && viewModel.trending.isEmpty && viewModel.popular.isEmpty
     }
 
     var body: some View {
+        let savedShowIDs = Set(libraryStore.items.map(\.showID))
+
         ZStack {
             background
                 .ignoresSafeArea()
@@ -30,11 +29,20 @@ struct DiscoverView: View {
                         DiscoverShelfSkeletonSection(title: "Popular")
                     } else {
                         if !viewModel.heroShows.isEmpty {
-                            heroCarouselSection(shows: viewModel.heroShows)
+                            DiscoverHeroCarouselSection(
+                                shows: viewModel.heroShows,
+                                savedShowIDs: savedShowIDs,
+                                onToggleSaved: { show in
+                                    toggleSavedState(for: show)
+                                }
+                            )
                         }
 
                         ForEach(viewModel.categorySections) { section in
-                            categorySection(section)
+                            categorySection(
+                                section,
+                                savedShowIDs: savedShowIDs
+                            )
                         }
 
                         if viewModel.isHydratingDetails {
@@ -56,131 +64,21 @@ struct DiscoverView: View {
             }
         }
         .navigationTitle("Discover")
-        .animation(.easeInOut(duration: 0.22), value: viewModel.categorySections.map(\.shows.count))
-        .animation(.easeInOut(duration: 0.22), value: viewModel.heroShows.map(\.id))
-        .animation(.easeInOut(duration: 0.22), value: viewModel.isHydratingDetails)
         .task {
             await viewModel.load(using: appContainer.showRepository)
         }
         .refreshable {
             await viewModel.refresh(using: appContainer.showRepository)
         }
-    }
-
-    private func heroCarouselSection(shows: [Show]) -> some View {
-        let loopedShows = loopedHeroShows(from: shows)
-
-        return TabView(selection: $heroSelection) {
-            ForEach(Array(loopedShows.enumerated()), id: \.offset) { index, show in
-                heroSlide(for: show)
-                    .padding(.horizontal, 20)
-                    .tag(indexForLoopedHero(at: index, realCount: shows.count))
-            }
-        }
-        .frame(height: 252)
-        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-        .accessibilityIdentifier("discover-hero-carousel")
-        .onChange(of: shows.map(\.id)) { _, ids in
-            guard !ids.isEmpty else {
-                heroSelection = 1
-                heroLoopCorrectionTask?.cancel()
-                return
-            }
-
-            if ids.count == 1 {
-                heroSelection = 1
-                heroLoopCorrectionTask?.cancel()
-            } else if heroSelection <= 0 || heroSelection > ids.count + 1 {
-                heroSelection = 1
-            }
-            lastHeroInteraction = Date()
-        }
-        .onChange(of: heroSelection) { _, newValue in
-            lastHeroInteraction = Date()
-
-            guard shows.count > 1 else { return }
-
-            if newValue == 0 {
-                scheduleHeroLoopCorrection(from: 0, to: shows.count)
-            } else if newValue == shows.count + 1 {
-                scheduleHeroLoopCorrection(from: shows.count + 1, to: 1)
-            } else {
-                heroLoopCorrectionTask?.cancel()
-            }
-        }
-        .task(id: shows.map(\.id)) {
-            guard shows.count > 1 else { return }
-
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 400_000_000)
-                guard !Task.isCancelled else { return }
-                guard Date().timeIntervalSince(lastHeroInteraction) >= 6 else { continue }
-
-                await MainActor.run {
-                    withAnimation(.smooth(duration: 0.95, extraBounce: 0.02)) {
-                        heroSelection += 1
-                    }
-                }
-            }
-        }
-        .onDisappear {
-            heroLoopCorrectionTask?.cancel()
+        .navigationDestination(for: Show.self) { show in
+            ShowDetailView(seedShow: show)
         }
     }
 
-    private func loopedHeroShows(from shows: [Show]) -> [Show] {
-        guard shows.count > 1, let first = shows.first, let last = shows.last else {
-            return shows
-        }
-
-        return [last] + shows + [first]
-    }
-
-    private func indexForLoopedHero(at loopedIndex: Int, realCount: Int) -> Int {
-        guard realCount > 1 else { return 1 }
-
-        return loopedIndex
-    }
-
-    private func scheduleHeroLoopCorrection(from edgeIndex: Int, to targetIndex: Int) {
-        heroLoopCorrectionTask?.cancel()
-        heroLoopCorrectionTask = Task { @MainActor in
-            // Let the swipe animation complete first, then silently rebase.
-            try? await Task.sleep(nanoseconds: 920_000_000)
-            guard !Task.isCancelled else { return }
-            guard heroSelection == edgeIndex else { return }
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                heroSelection = targetIndex
-            }
-        }
-    }
-
-    private func heroSlide(for show: Show) -> some View {
-        let isSaved = libraryStore.shelf(for: show.id) != nil
-        let heroLabel = show.bingeableState == .ready ? "Ready Now" : "Watch Soon"
-
-        return ZStack(alignment: .topTrailing) {
-            NavigationLink {
-                ShowDetailView(seedShow: show)
-            } label: {
-                DiscoverHeroCardView(show: show, headline: heroLabel, isSaved: isSaved)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens show details")
-            .accessibilityIdentifier("discover-hero-card")
-
-            DiscoverQuickSaveButton(isSaved: isSaved) {
-                toggleSavedState(for: show)
-            }
-            .padding(14)
-            .accessibilityIdentifier("discover-hero-save")
-        }
-    }
-
-    private func categorySection(_ section: DiscoverViewModel.DiscoverCategorySection) -> some View {
+    private func categorySection(
+        _ section: DiscoverViewModel.DiscoverCategorySection,
+        savedShowIDs: Set<Int>
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             DiscoverSectionHeaderView(title: section.title, subtitle: "")
                 .padding(.horizontal, 20)
@@ -197,25 +95,24 @@ struct DiscoverView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 10) {
                         ForEach(section.shows) { show in
-                            shelfCard(for: show)
+                            shelfCard(for: show, savedShowIDs: savedShowIDs)
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 2)
                 }
+                .accessibilityIdentifier("discover-rail-\(section.id)")
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("discover-section-\(section.id)")
     }
 
-    private func shelfCard(for show: Show) -> some View {
-        let isSaved = libraryStore.shelf(for: show.id) != nil
+    private func shelfCard(for show: Show, savedShowIDs: Set<Int>) -> some View {
+        let isSaved = savedShowIDs.contains(show.id)
 
         return ZStack(alignment: .topTrailing) {
-            NavigationLink {
-                ShowDetailView(seedShow: show)
-            } label: {
+            NavigationLink(value: show) {
                 DiscoverShelfCardView(show: show, isSaved: isSaved)
             }
             .buttonStyle(.plain)
@@ -303,6 +200,16 @@ struct DiscoverView: View {
         colorScheme == .dark ? .white : .primary
     }
 
+    private var platformBackgroundColor: Color {
+#if os(iOS)
+        return Color(uiColor: .systemBackground)
+#elseif os(macOS)
+        return Color(nsColor: .windowBackgroundColor)
+#else
+        return Color.white
+#endif
+    }
+
     private var background: some View {
         ZStack {
             LinearGradient(
@@ -310,7 +217,7 @@ struct DiscoverView: View {
                     Color.blue.opacity(colorScheme == .dark ? 0.26 : 0.14),
                     Color.cyan.opacity(colorScheme == .dark ? 0.13 : 0.08),
                     Color.indigo.opacity(colorScheme == .dark ? 0.12 : 0.06),
-                    Color(.systemBackground)
+                    platformBackgroundColor
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -341,6 +248,139 @@ struct DiscoverView: View {
                 )
                 .ignoresSafeArea()
         }
+    }
+}
+
+private struct DiscoverHeroCarouselSection: View {
+    let shows: [Show]
+    let savedShowIDs: Set<Int>
+    let onToggleSaved: (Show) -> Void
+
+    @State private var heroSelection = 1
+    @State private var lastHeroInteraction = Date()
+    @State private var heroLoopCorrectionTask: Task<Void, Never>?
+    @State private var isVisible = false
+
+    var body: some View {
+        let loopedShows = loopedHeroShows(from: shows)
+
+        TabView(selection: $heroSelection) {
+            ForEach(Array(loopedShows.enumerated()), id: \.offset) { index, show in
+                heroSlide(for: show)
+                    .padding(.horizontal, 20)
+                    .tag(index)
+            }
+        }
+        .frame(height: 252)
+        .discoverHeroTabStyle()
+        .accessibilityIdentifier("discover-hero-carousel")
+        .onChange(of: shows.map(\.id)) { _, ids in
+            guard !ids.isEmpty else {
+                heroSelection = 1
+                heroLoopCorrectionTask?.cancel()
+                return
+            }
+
+            if ids.count == 1 {
+                heroSelection = 1
+                heroLoopCorrectionTask?.cancel()
+            } else if heroSelection <= 0 || heroSelection > ids.count + 1 {
+                heroSelection = 1
+            }
+            lastHeroInteraction = Date()
+        }
+        .onChange(of: heroSelection) { _, newValue in
+            lastHeroInteraction = Date()
+
+            guard shows.count > 1 else { return }
+
+            if newValue == 0 {
+                scheduleHeroLoopCorrection(from: 0, to: shows.count)
+            } else if newValue == shows.count + 1 {
+                scheduleHeroLoopCorrection(from: shows.count + 1, to: 1)
+            } else {
+                heroLoopCorrectionTask?.cancel()
+            }
+        }
+        .task(id: shows.map(\.id)) {
+            guard AppConfiguration.discoverHeroAutoplayEnabled else { return }
+            guard shows.count > 1 else { return }
+
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                guard !Task.isCancelled else { return }
+                guard isVisible else { continue }
+                guard Date().timeIntervalSince(lastHeroInteraction) >= 6 else { continue }
+
+                await MainActor.run {
+                    withAnimation(.smooth(duration: 0.95, extraBounce: 0.02)) {
+                        heroSelection += 1
+                    }
+                }
+            }
+        }
+        .onAppear {
+            isVisible = true
+        }
+        .onDisappear {
+            isVisible = false
+            heroLoopCorrectionTask?.cancel()
+        }
+    }
+
+    private func loopedHeroShows(from shows: [Show]) -> [Show] {
+        guard shows.count > 1, let first = shows.first, let last = shows.last else {
+            return shows
+        }
+
+        return [last] + shows + [first]
+    }
+
+    private func scheduleHeroLoopCorrection(from edgeIndex: Int, to targetIndex: Int) {
+        heroLoopCorrectionTask?.cancel()
+        heroLoopCorrectionTask = Task { @MainActor in
+            // Let the swipe animation complete first, then silently rebase.
+            try? await Task.sleep(nanoseconds: 920_000_000)
+            guard !Task.isCancelled else { return }
+            guard heroSelection == edgeIndex else { return }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                heroSelection = targetIndex
+            }
+        }
+    }
+
+    private func heroSlide(for show: Show) -> some View {
+        let heroLabel = show.bingeableState == .ready ? "Ready Now" : "Watch Soon"
+        let saved = savedShowIDs.contains(show.id)
+
+        return ZStack(alignment: .topTrailing) {
+            NavigationLink(value: show) {
+                DiscoverHeroCardView(show: show, headline: heroLabel, isSaved: saved)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens show details")
+            .accessibilityIdentifier("discover-hero-card")
+
+            DiscoverQuickSaveButton(isSaved: saved) {
+                onToggleSaved(show)
+            }
+            .padding(14)
+            .accessibilityIdentifier("discover-hero-save")
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func discoverHeroTabStyle() -> some View {
+#if os(iOS)
+        self.tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+#else
+        self
+#endif
     }
 }
 
