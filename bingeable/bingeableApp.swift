@@ -5,6 +5,7 @@ import SwiftUI
 struct bingeableApp: App {
     @StateObject private var appContainer: AppContainer
     @StateObject private var libraryStore: LibraryStore
+    @StateObject private var profileSettingsStore: ProfileSettingsStore
 
     private let modelContainer: ModelContainer
 
@@ -14,10 +15,15 @@ struct bingeableApp: App {
 
         let appContainer = AppContainer()
         let libraryStore = LibraryStore(context: container.mainContext)
+        let profileSettingsStore = ProfileSettingsStore()
         let environment = ProcessInfo.processInfo.environment
 
         if environment["UI_TEST_RESET_LIBRARY"] == "1" {
             libraryStore.clearAll()
+        }
+
+        if environment["UI_TEST_RESET_PROFILE"] == "1" {
+            profileSettingsStore.clearAll()
         }
 
         if let rawSeedCount = environment["UI_TEST_LIBRARY_SEED_COUNT"],
@@ -27,6 +33,7 @@ struct bingeableApp: App {
         }
         _appContainer = StateObject(wrappedValue: appContainer)
         _libraryStore = StateObject(wrappedValue: libraryStore)
+        _profileSettingsStore = StateObject(wrappedValue: profileSettingsStore)
     }
 
     var body: some Scene {
@@ -35,6 +42,7 @@ struct bingeableApp: App {
                 .environmentObject(appContainer)
                 .environmentObject(appContainer.sessionManager)
                 .environmentObject(libraryStore)
+                .environmentObject(profileSettingsStore)
         }
         .modelContainer(modelContainer)
     }

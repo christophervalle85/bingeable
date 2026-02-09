@@ -34,6 +34,17 @@ final class SessionManager: ObservableObject {
 
     @Published private(set) var authState: AuthState = .undetermined
 
+    var profileScopeIdentifier: String {
+        switch authState {
+        case let .signedIn(email):
+            return email
+        case .guest:
+            return "guest"
+        case .undetermined:
+            return "signed_out"
+        }
+    }
+
     private let defaults: UserDefaults
 
     private enum Keys {
