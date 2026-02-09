@@ -20,8 +20,6 @@ struct DiscoverView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    heading
-
                     if let errorMessage = viewModel.errorMessage {
                         errorBanner(message: errorMessage)
                     }
@@ -67,19 +65,6 @@ struct DiscoverView: View {
         .refreshable {
             await viewModel.refresh(using: appContainer.showRepository)
         }
-    }
-
-    private var heading: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Discover")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(primaryTextColor)
-
-            Text("Swipe hero picks, then dive into curated rails.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 20)
     }
 
     private func heroCarouselSection(shows: [Show]) -> some View {
@@ -197,7 +182,7 @@ struct DiscoverView: View {
 
     private func categorySection(_ section: DiscoverViewModel.DiscoverCategorySection) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            DiscoverSectionHeaderView(title: section.title, subtitle: section.subtitle)
+            DiscoverSectionHeaderView(title: section.title, subtitle: "")
                 .padding(.horizontal, 20)
 
             if section.shows.isEmpty {
@@ -210,7 +195,7 @@ struct DiscoverView: View {
                     .padding(.horizontal, 20)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 14) {
+                    LazyHStack(spacing: 10) {
                         ForEach(section.shows) { show in
                             shelfCard(for: show)
                         }
@@ -240,7 +225,7 @@ struct DiscoverView: View {
             DiscoverQuickSaveButton(isSaved: isSaved) {
                 toggleSavedState(for: show)
             }
-            .padding(14)
+            .padding(10)
             .accessibilityIdentifier("discover-save-\(show.id)")
         }
     }
@@ -369,11 +354,11 @@ private struct DiscoverShelfSkeletonSection: View {
                 .redacted(reason: .placeholder)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 14) {
+                LazyHStack(spacing: 10) {
                     ForEach(0..<4, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.secondary.opacity(0.16))
-                            .frame(width: 176, height: 248)
+                            .frame(width: 132, height: 198)
                             .overlay {
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .stroke(Color.secondary.opacity(0.12), lineWidth: 1)

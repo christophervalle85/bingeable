@@ -14,7 +14,7 @@ enum AppConfiguration {
     }
 
     nonisolated static let tmdbBaseURL = URL(string: "https://api.themoviedb.org/3")!
-    nonisolated static let tmdbImageBaseURL = URL(string: "https://image.tmdb.org/t/p/w500")!
+    nonisolated static let tmdbImageBaseURL = URL(string: "https://image.tmdb.org/t/p")!
 
     nonisolated static func makeURLCache() -> URLCache {
         URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 250 * 1024 * 1024)
