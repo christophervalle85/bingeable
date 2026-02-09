@@ -104,8 +104,13 @@ final class DiscoverViewModel: ObservableObject {
             }
     }
 
+    var heroShows: [Show] {
+        let prioritized = readyToBingeShows + readySoonShows + resolvedTrending + resolvedPopular
+        return Array(uniqueShowsPreservingOrder(prioritized).prefix(8))
+    }
+
     var heroShow: Show? {
-        readyToBingeShows.first ?? readySoonShows.first ?? resolvedTrending.first ?? resolvedPopular.first
+        heroShows.first
     }
 
     var categorySections: [DiscoverCategorySection] {

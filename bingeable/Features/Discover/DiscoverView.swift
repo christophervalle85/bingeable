@@ -5,6 +5,9 @@ struct DiscoverView: View {
     @EnvironmentObject private var libraryStore: LibraryStore
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel = DiscoverViewModel()
+    @State private var heroSelection = 1
+    @State private var lastHeroInteraction = Date()
+    @State private var heroLoopCorrectionTask: Task<Void, Never>?
 
     private var isInitialLoading: Bool {
         viewModel.isLoading && viewModel.trending.isEmpty && viewModel.popular.isEmpty
@@ -16,7 +19,7 @@ struct DiscoverView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     heading
 
                     if let errorMessage = viewModel.errorMessage {
@@ -28,8 +31,8 @@ struct DiscoverView: View {
                         DiscoverShelfSkeletonSection(title: "Trending")
                         DiscoverShelfSkeletonSection(title: "Popular")
                     } else {
-                        if let hero = viewModel.heroShow {
-                            heroSection(for: hero)
+                        if !viewModel.heroShows.isEmpty {
+                            heroCarouselSection(shows: viewModel.heroShows)
                         }
 
                         ForEach(viewModel.categorySections) { section in
@@ -43,6 +46,7 @@ struct DiscoverView: View {
                 }
                 .padding(.vertical, 18)
             }
+            .scrollIndicators(.hidden)
             .overlay(alignment: .topTrailing) {
                 if viewModel.isLoading, !isInitialLoading {
                     ProgressView()
@@ -55,6 +59,7 @@ struct DiscoverView: View {
         }
         .navigationTitle("Discover")
         .animation(.easeInOut(duration: 0.22), value: viewModel.categorySections.map(\.shows.count))
+        .animation(.easeInOut(duration: 0.22), value: viewModel.heroShows.map(\.id))
         .animation(.easeInOut(duration: 0.22), value: viewModel.isHydratingDetails)
         .task {
             await viewModel.load(using: appContainer.showRepository)
@@ -70,14 +75,105 @@ struct DiscoverView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(primaryTextColor)
 
-            Text("Hero picks and curated lists by category")
+            Text("Swipe hero picks, then dive into curated rails.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
     }
 
-    private func heroSection(for show: Show) -> some View {
+    private func heroCarouselSection(shows: [Show]) -> some View {
+        let loopedShows = loopedHeroShows(from: shows)
+
+        return TabView(selection: $heroSelection) {
+            ForEach(Array(loopedShows.enumerated()), id: \.offset) { index, show in
+                heroSlide(for: show)
+                    .padding(.horizontal, 20)
+                    .tag(indexForLoopedHero(at: index, realCount: shows.count))
+            }
+        }
+        .frame(height: 252)
+        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+        .accessibilityIdentifier("discover-hero-carousel")
+        .onChange(of: shows.map(\.id)) { _, ids in
+            guard !ids.isEmpty else {
+                heroSelection = 1
+                heroLoopCorrectionTask?.cancel()
+                return
+            }
+
+            if ids.count == 1 {
+                heroSelection = 1
+                heroLoopCorrectionTask?.cancel()
+            } else if heroSelection <= 0 || heroSelection > ids.count + 1 {
+                heroSelection = 1
+            }
+            lastHeroInteraction = Date()
+        }
+        .onChange(of: heroSelection) { _, newValue in
+            lastHeroInteraction = Date()
+
+            guard shows.count > 1 else { return }
+
+            if newValue == 0 {
+                scheduleHeroLoopCorrection(from: 0, to: shows.count)
+            } else if newValue == shows.count + 1 {
+                scheduleHeroLoopCorrection(from: shows.count + 1, to: 1)
+            } else {
+                heroLoopCorrectionTask?.cancel()
+            }
+        }
+        .task(id: shows.map(\.id)) {
+            guard shows.count > 1 else { return }
+
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                guard !Task.isCancelled else { return }
+                guard Date().timeIntervalSince(lastHeroInteraction) >= 6 else { continue }
+
+                await MainActor.run {
+                    withAnimation(.smooth(duration: 0.95, extraBounce: 0.02)) {
+                        heroSelection += 1
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            heroLoopCorrectionTask?.cancel()
+        }
+    }
+
+    private func loopedHeroShows(from shows: [Show]) -> [Show] {
+        guard shows.count > 1, let first = shows.first, let last = shows.last else {
+            return shows
+        }
+
+        return [last] + shows + [first]
+    }
+
+    private func indexForLoopedHero(at loopedIndex: Int, realCount: Int) -> Int {
+        guard realCount > 1 else { return 1 }
+
+        return loopedIndex
+    }
+
+    private func scheduleHeroLoopCorrection(from edgeIndex: Int, to targetIndex: Int) {
+        heroLoopCorrectionTask?.cancel()
+        heroLoopCorrectionTask = Task { @MainActor in
+            // Let the swipe animation complete first, then silently rebase.
+            try? await Task.sleep(nanoseconds: 920_000_000)
+            guard !Task.isCancelled else { return }
+            guard heroSelection == edgeIndex else { return }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                heroSelection = targetIndex
+            }
+        }
+    }
+
+    private func heroSlide(for show: Show) -> some View {
         let isSaved = libraryStore.shelf(for: show.id) != nil
         let heroLabel = show.bingeableState == .ready ? "Ready Now" : "Watch Soon"
 
@@ -97,11 +193,10 @@ struct DiscoverView: View {
             .padding(14)
             .accessibilityIdentifier("discover-hero-save")
         }
-        .padding(.horizontal, 20)
     }
 
     private func categorySection(_ section: DiscoverViewModel.DiscoverCategorySection) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             DiscoverSectionHeaderView(title: section.title, subtitle: section.subtitle)
                 .padding(.horizontal, 20)
 
@@ -212,9 +307,9 @@ struct DiscoverView: View {
     }
 
     private var heroSkeleton: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
             .fill(Color.secondary.opacity(0.16))
-            .frame(height: 230)
+            .frame(height: 248)
             .padding(.horizontal, 20)
             .redacted(reason: .placeholder)
     }
@@ -227,25 +322,39 @@ struct DiscoverView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color.blue.opacity(colorScheme == .dark ? 0.3 : 0.18),
-                    Color.indigo.opacity(colorScheme == .dark ? 0.16 : 0.08),
+                    Color.blue.opacity(colorScheme == .dark ? 0.26 : 0.14),
+                    Color.cyan.opacity(colorScheme == .dark ? 0.13 : 0.08),
+                    Color.indigo.opacity(colorScheme == .dark ? 0.12 : 0.06),
                     Color(.systemBackground)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
 
             Circle()
-                .fill(Color.orange.opacity(colorScheme == .dark ? 0.12 : 0.08))
-                .frame(width: 260, height: 260)
-                .blur(radius: 18)
-                .offset(x: 120, y: -260)
+                .fill(Color.teal.opacity(colorScheme == .dark ? 0.1 : 0.06))
+                .frame(width: 300, height: 300)
+                .blur(radius: 30)
+                .offset(x: 140, y: -320)
 
             Circle()
                 .fill(Color.blue.opacity(colorScheme == .dark ? 0.12 : 0.08))
                 .frame(width: 210, height: 210)
-                .blur(radius: 14)
-                .offset(x: -130, y: -120)
+                .blur(radius: 22)
+                .offset(x: -140, y: -160)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(colorScheme == .dark ? 0.2 : 0.03),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .ignoresSafeArea()
         }
     }
 }
@@ -262,11 +371,11 @@ private struct DiscoverShelfSkeletonSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
                     ForEach(0..<4, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.secondary.opacity(0.16))
-                            .frame(width: 196, height: 310)
+                            .frame(width: 176, height: 248)
                             .overlay {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                             }
                     }
