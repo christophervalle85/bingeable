@@ -68,25 +68,33 @@ struct SettingsView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             if selectedSection == .profile {
-                Text("Profile")
-                    .font(.title2.weight(.black))
-                    .fontDesign(.serif)
+                Color.clear
+                    .frame(width: 34, height: 34)
             } else {
                 Button {
                     withAnimation(.snappy(duration: 0.2)) {
                         selectedSection = .profile
                     }
                 } label: {
-                    Label("Profile", systemImage: "chevron.left")
-                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 34, height: 34)
+                        .background(Color.secondary.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("profile-back-button")
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            Text(topBarTitle)
+                .font(.headline.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+
+            Spacer(minLength: 8)
 
             Button {
                 withAnimation(.snappy(duration: 0.2)) {
@@ -107,29 +115,51 @@ struct SettingsView: View {
     }
 
     private var profileHeaderCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: viewModel.avatarStyle.symbolName)
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.cyan.gradient, in: Circle())
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.cyan, Color.blue.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 78, height: 78)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Profile")
-                        .font(.title3.weight(.bold))
-
-                    Text(viewModel.accountBadgeText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Image(systemName: viewModel.avatarStyle.symbolName)
+                        .font(.system(size: 33, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
+                .overlay {
+                    Circle()
+                        .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                }
+                .accessibilityIdentifier("profile-avatar")
 
-                Spacer(minLength: 0)
+                HStack(spacing: 20) {
+                    profileStatColumn(value: watchingCount, title: "Watching")
+                    profileStatColumn(value: finishedCount, title: "Watched")
+                    profileStatColumn(value: waitingCount, title: "Queue")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Text("Quick access to profile updates, services, and queue activity.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .center, spacing: 4) {
+                Text(displayNameForProfile)
+                    .font(.headline.weight(.bold))
+
+                Text("Tracking \(libraryStore.items.count) saved titles across your queue.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text("Latest activity: \(mostRecentlyUpdatedName ?? "No titles yet")")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .multilineTextAlignment(.center)
 
             Button {
                 withAnimation(.snappy(duration: 0.2)) {
@@ -284,6 +314,38 @@ struct SettingsView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func profileStatColumn(value: Int, title: String) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(.title3.weight(.black))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .center)
+            Text(title)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    private var displayNameForProfile: String {
+        let trimmed = viewModel.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Viewer" : trimmed
+    }
+
+    private var topBarTitle: String {
+        switch selectedSection {
+        case .profile:
+            return displayNameForProfile
+        case .editProfile:
+            return "Edit Profile"
+        case .subscriptions:
+            return "Subscriptions"
+        case .appSettings:
+            return "App Settings"
+        }
     }
 
     private var waitingCount: Int {
