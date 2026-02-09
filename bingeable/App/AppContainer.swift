@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class AppContainer: ObservableObject {
     let sessionManager: SessionManager
-    let showRepository: TMDBShowRepository
+    let showRepository: any ShowRepository
     let regionCode: String
     let hasTMDBAPIKey: Bool
 
@@ -15,14 +15,18 @@ final class AppContainer: ObservableObject {
 
         self.sessionManager = SessionManager()
 
-        let detailCache = ShowDetailCache()
-        let client = TMDBClient(apiKey: AppConfiguration.tmdbAPIKey)
-        self.showRepository = TMDBShowRepository(
-            client: client,
-            detailCache: detailCache,
-            regionProvider: regionProvider
-        )
-
-        self.hasTMDBAPIKey = AppConfiguration.tmdbAPIKey?.isEmpty == false
+        if AppConfiguration.isRunningInPreviewHost && AppConfiguration.discoverPreviewUseFixtureRepository {
+            self.showRepository = PreviewShowRepository()
+            self.hasTMDBAPIKey = false
+        } else {
+            let detailCache = ShowDetailCache()
+            let client = TMDBClient(apiKey: AppConfiguration.tmdbAPIKey)
+            self.showRepository = TMDBShowRepository(
+                client: client,
+                detailCache: detailCache,
+                regionProvider: regionProvider
+            )
+            self.hasTMDBAPIKey = AppConfiguration.tmdbAPIKey?.isEmpty == false
+        }
     }
 }

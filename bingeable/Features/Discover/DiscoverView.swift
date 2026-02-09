@@ -1,4 +1,6 @@
 import SwiftUI
+import SwiftData
+import Combine
 
 struct DiscoverView: View {
     @EnvironmentObject private var appContainer: AppContainer
@@ -28,7 +30,7 @@ struct DiscoverView: View {
                         DiscoverShelfSkeletonSection(title: "Trending")
                         DiscoverShelfSkeletonSection(title: "Popular")
                     } else {
-                        if !viewModel.heroShows.isEmpty {
+                        if !viewModel.heroShows.isEmpty, AppConfiguration.discoverPreviewHeroEnabled {
                             DiscoverHeroCarouselSection(
                                 shows: viewModel.heroShows,
                                 savedShowIDs: savedShowIDs,
@@ -65,9 +67,11 @@ struct DiscoverView: View {
         }
         .navigationTitle("Discover")
         .task {
+            guard !AppConfiguration.isRunningInPreviewHost || AppConfiguration.discoverPreviewDataLoadingEnabled else { return }
             await viewModel.load(using: appContainer.showRepository)
         }
         .refreshable {
+            guard !AppConfiguration.isRunningInPreviewHost || AppConfiguration.discoverPreviewDataLoadingEnabled else { return }
             await viewModel.refresh(using: appContainer.showRepository)
         }
         .navigationDestination(for: Show.self) { show in
@@ -252,88 +256,185 @@ struct DiscoverView: View {
 }
 
 private struct DiscoverHeroCarouselSection: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     let shows: [Show]
     let savedShowIDs: Set<Int>
     let onToggleSaved: (Show) -> Void
 
-    @State private var heroSelection = 1
+    @State private var heroSelection = 0
     @State private var lastHeroInteraction = Date()
     @State private var heroLoopCorrectionTask: Task<Void, Never>?
-    @State private var isVisible = false
 
+    @ViewBuilder
     var body: some View {
-        let loopedShows = loopedHeroShows(from: shows)
-
-        TabView(selection: $heroSelection) {
-            ForEach(Array(loopedShows.enumerated()), id: \.offset) { index, show in
-                heroSlide(for: show)
-                    .padding(.horizontal, 20)
-                    .tag(index)
-            }
-        }
-        .frame(height: 252)
-        .discoverHeroTabStyle()
-        .accessibilityIdentifier("discover-hero-carousel")
-        .onChange(of: shows.map(\.id)) { _, ids in
-            guard !ids.isEmpty else {
-                heroSelection = 1
-                heroLoopCorrectionTask?.cancel()
-                return
-            }
-
-            if ids.count == 1 {
-                heroSelection = 1
-                heroLoopCorrectionTask?.cancel()
-            } else if heroSelection <= 0 || heroSelection > ids.count + 1 {
-                heroSelection = 1
-            }
-            lastHeroInteraction = Date()
-        }
-        .onChange(of: heroSelection) { _, newValue in
-            lastHeroInteraction = Date()
-
-            guard shows.count > 1 else { return }
-
-            if newValue == 0 {
-                scheduleHeroLoopCorrection(from: 0, to: shows.count)
-            } else if newValue == shows.count + 1 {
-                scheduleHeroLoopCorrection(from: shows.count + 1, to: 1)
+        Group {
+            if usesStaticPreviewHero {
+                previewStaticHero
             } else {
-                heroLoopCorrectionTask?.cancel()
+                interactiveHeroCarousel
             }
         }
-        .task(id: shows.map(\.id)) {
-            guard AppConfiguration.discoverHeroAutoplayEnabled else { return }
-            guard shows.count > 1 else { return }
+        .frame(height: heroSectionHeight)
+        .accessibilityIdentifier("discover-hero-carousel")
+    }
 
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 6_000_000_000)
-                guard !Task.isCancelled else { return }
-                guard isVisible else { continue }
-                guard Date().timeIntervalSince(lastHeroInteraction) >= 6 else { continue }
+    private var heroSectionHeight: CGFloat { 252 }
 
-                await MainActor.run {
-                    withAnimation(.smooth(duration: 0.95, extraBounce: 0.02)) {
-                        heroSelection += 1
+    private var interactiveHeroCarousel: some View {
+        let carouselShows = carouselShows(from: shows)
+
+        return heroCarouselContainer(for: carouselShows)
+            .onChange(of: shows.map(\.id)) { _, ids in
+                guard !ids.isEmpty else {
+                    heroSelection = initialHeroSelection
+                    heroLoopCorrectionTask?.cancel()
+                    return
+                }
+
+                if ids.count == 1 {
+                    heroSelection = initialHeroSelection
+                    heroLoopCorrectionTask?.cancel()
+                } else if usesLoopedCarousel {
+                    if heroSelection <= 0 || heroSelection > ids.count + 1 {
+                        heroSelection = 1
                     }
+                } else if heroSelection < 0 || heroSelection >= ids.count {
+                    heroSelection = 0
+                }
+
+                markHeroInteractionIfNeeded()
+            }
+            .onChange(of: heroSelection) { _, _ in
+                markHeroInteractionIfNeeded()
+
+                guard shows.count > 1 else { return }
+                guard usesLoopedCarousel else {
+                    heroLoopCorrectionTask?.cancel()
+                    return
+                }
+
+                if heroSelection == 0 {
+                    scheduleHeroLoopCorrection(from: 0, to: shows.count)
+                } else if heroSelection == shows.count + 1 {
+                    scheduleHeroLoopCorrection(from: shows.count + 1, to: 1)
+                } else {
+                    heroLoopCorrectionTask?.cancel()
                 }
             }
-        }
-        .onAppear {
-            isVisible = true
-        }
-        .onDisappear {
-            isVisible = false
-            heroLoopCorrectionTask?.cancel()
+            .onDisappear {
+                heroLoopCorrectionTask?.cancel()
+            }
+            .task(id: heroAutoplayTaskID) {
+                await runHeroAutoplayLoop()
+            }
+            .onAppear {
+                normalizeSelectionIfNeeded()
+            }
+    }
+
+    @ViewBuilder
+    private var previewStaticHero: some View {
+        if let firstShow = shows.first {
+            heroSlide(for: firstShow)
+                .padding(.horizontal, 20)
+        } else {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.secondary.opacity(0.14))
+                .padding(.horizontal, 20)
         }
     }
 
-    private func loopedHeroShows(from shows: [Show]) -> [Show] {
-        guard shows.count > 1, let first = shows.first, let last = shows.last else {
+    private var usesStaticPreviewHero: Bool {
+        AppConfiguration.isRunningInPreviewHost && !AppConfiguration.discoverPreviewHeroInteractiveEnabled
+    }
+
+    private var usesLoopedCarousel: Bool {
+        !AppConfiguration.isRunningInPreviewHost
+    }
+
+    private var initialHeroSelection: Int {
+        usesLoopedCarousel ? 1 : 0
+    }
+
+    private func carouselShows(from shows: [Show]) -> [Show] {
+        guard usesLoopedCarousel,
+              shows.count > 1,
+              let first = shows.first,
+              let last = shows.last else {
             return shows
         }
 
         return [last] + shows + [first]
+    }
+
+    @ViewBuilder
+    private func heroCarouselContainer(for carouselShows: [Show]) -> some View {
+        if usesLoopedCarousel {
+            TabView(selection: $heroSelection) {
+                ForEach(Array(carouselShows.enumerated()), id: \.offset) { index, show in
+                    heroSlide(for: show)
+                        .padding(.horizontal, 20)
+                        .tag(index)
+                }
+            }
+            .discoverHeroTabStyle()
+        } else {
+            ZStack {
+                if carouselShows.indices.contains(heroSelection) {
+                    heroSlide(for: carouselShows[heroSelection])
+                        .padding(.horizontal, 20)
+                        .id(carouselShows[heroSelection].id)
+                        .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                }
+            }
+            .clipped()
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                    .onEnded { value in
+                        guard carouselShows.count > 1 else { return }
+
+                        let threshold: CGFloat = 42
+                        let projected = value.predictedEndTranslation.width
+                        let drag = value.translation.width
+                        var nextSelection = heroSelection
+
+                        if drag < -threshold || projected < -threshold {
+                            nextSelection += 1
+                        } else if drag > threshold || projected > threshold {
+                            nextSelection -= 1
+                        }
+
+                        nextSelection = min(max(nextSelection, 0), max(carouselShows.count - 1, 0))
+                        guard nextSelection != heroSelection else { return }
+
+                        withAnimation(.easeInOut(duration: 0.24)) {
+                            heroSelection = nextSelection
+                        }
+                    }
+            )
+        }
+    }
+
+    private func normalizeSelectionIfNeeded() {
+        guard !shows.isEmpty else {
+            heroSelection = initialHeroSelection
+            return
+        }
+
+        if shows.count == 1 {
+            heroSelection = initialHeroSelection
+            return
+        }
+
+        if usesLoopedCarousel {
+            if heroSelection <= 0 || heroSelection > shows.count + 1 {
+                heroSelection = 1
+            }
+        } else if heroSelection < 0 || heroSelection >= shows.count {
+            heroSelection = 0
+        }
     }
 
     private func scheduleHeroLoopCorrection(from edgeIndex: Int, to targetIndex: Int) {
@@ -352,23 +453,91 @@ private struct DiscoverHeroCarouselSection: View {
         }
     }
 
+    private var shouldRunHeroAutoplay: Bool {
+        AppConfiguration.discoverHeroAutoplayEnabled
+            && shows.count > 1
+            && scenePhase == .active
+    }
+
+    private struct HeroAutoplayTaskID: Hashable {
+        let showIDs: [Int]
+        let shouldRun: Bool
+        let intervalNanoseconds: UInt64
+        let idleThresholdSeconds: TimeInterval
+    }
+
+    private var heroAutoplayTaskID: HeroAutoplayTaskID {
+        HeroAutoplayTaskID(
+            showIDs: shows.map(\.id),
+            shouldRun: shouldRunHeroAutoplay,
+            intervalNanoseconds: heroAutoplayIntervalNanoseconds,
+            idleThresholdSeconds: AppConfiguration.discoverHeroAutoplayIdleThresholdSeconds
+        )
+    }
+
+    private var heroAutoplayIntervalNanoseconds: UInt64 {
+        let seconds = max(0.5, AppConfiguration.discoverHeroAutoplayIntervalSeconds)
+        return UInt64(seconds * 1_000_000_000)
+    }
+
+    private var heroAutoplayAnimation: Animation {
+        if AppConfiguration.isRunningInPreviewHost {
+            return .easeInOut(duration: 0.18)
+        }
+
+        return .smooth(duration: AppConfiguration.discoverHeroAutoplayAnimationDurationSeconds, extraBounce: 0.02)
+    }
+
+    @MainActor
+    private func runHeroAutoplayLoop() async {
+        guard shouldRunHeroAutoplay else { return }
+
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: heroAutoplayIntervalNanoseconds)
+            guard !Task.isCancelled else { return }
+            guard shouldRunHeroAutoplay else { continue }
+            guard Date().timeIntervalSince(lastHeroInteraction) >= AppConfiguration.discoverHeroAutoplayIdleThresholdSeconds else {
+                continue
+            }
+
+            withAnimation(heroAutoplayAnimation) {
+                if usesLoopedCarousel {
+                    heroSelection += 1
+                } else {
+                    heroSelection = (heroSelection + 1) % shows.count
+                }
+            }
+        }
+    }
+
+    private func markHeroInteractionIfNeeded() {
+        guard AppConfiguration.discoverHeroAutoplayEnabled else { return }
+        lastHeroInteraction = Date()
+    }
+
+    @ViewBuilder
     private func heroSlide(for show: Show) -> some View {
         let heroLabel = show.bingeableState == .ready ? "Ready Now" : "Watch Soon"
         let saved = savedShowIDs.contains(show.id)
 
-        return ZStack(alignment: .topTrailing) {
-            NavigationLink(value: show) {
-                DiscoverHeroCardView(show: show, headline: heroLabel, isSaved: saved)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens show details")
-            .accessibilityIdentifier("discover-hero-card")
+        if AppConfiguration.isRunningInPreviewHost {
+            DiscoverHeroCardView(show: show, headline: heroLabel, isSaved: saved)
+                .accessibilityIdentifier("discover-hero-card")
+        } else {
+            ZStack(alignment: .topTrailing) {
+                NavigationLink(value: show) {
+                    DiscoverHeroCardView(show: show, headline: heroLabel, isSaved: saved)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens show details")
+                .accessibilityIdentifier("discover-hero-card")
 
-            DiscoverQuickSaveButton(isSaved: saved) {
-                onToggleSaved(show)
+                DiscoverQuickSaveButton(isSaved: saved) {
+                    onToggleSaved(show)
+                }
+                .padding(14)
+                .accessibilityIdentifier("discover-hero-save")
             }
-            .padding(14)
-            .accessibilityIdentifier("discover-hero-save")
         }
     }
 }
@@ -409,5 +578,124 @@ private struct DiscoverShelfSkeletonSection: View {
             }
         }
         .redacted(reason: .placeholder)
+    }
+}
+
+#Preview("Discover Hero Canvas") {
+    DiscoverHeroPreviewHarness()
+}
+
+#Preview("Discover In App Shell") {
+    DiscoverInAppShellPreviewRoot()
+}
+
+@MainActor
+private final class DiscoverInAppShellPreviewDependencies: ObservableObject {
+    let appContainer: AppContainer
+    let modelContainer: ModelContainer
+    let libraryStore: LibraryStore
+
+    init() {
+        self.appContainer = AppContainer()
+        self.appContainer.sessionManager.continueAsGuest()
+
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        self.modelContainer = try! ModelContainer(for: TrackedShowEntity.self, configurations: config)
+        self.libraryStore = LibraryStore(context: modelContainer.mainContext)
+    }
+}
+
+private struct DiscoverInAppShellPreviewRoot: View {
+    @StateObject private var deps = DiscoverInAppShellPreviewDependencies()
+
+    var body: some View {
+        NavigationStack {
+            DiscoverView()
+        }
+            .environmentObject(deps.appContainer)
+            .environmentObject(deps.appContainer.sessionManager)
+            .environmentObject(deps.libraryStore)
+            .modelContainer(deps.modelContainer)
+    }
+}
+
+private struct DiscoverHeroPreviewHarness: View {
+    @State private var savedShowIDs: Set<Int> = [1396, 66732]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.9),
+                    Color.indigo.opacity(0.42),
+                    Color.blue.opacity(0.24)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            DiscoverHeroCarouselSection(
+                shows: heroFixtures,
+                savedShowIDs: savedShowIDs,
+                onToggleSaved: { show in
+                    if savedShowIDs.contains(show.id) {
+                        savedShowIDs.remove(show.id)
+                    } else {
+                        savedShowIDs.insert(show.id)
+                    }
+                }
+            )
+            .padding(.vertical, 22)
+        }
+    }
+
+    private var heroFixtures: [Show] {
+        [
+            Show(
+                id: 1396,
+                name: "Breaking Bad",
+                posterPath: nil,
+                overview: "A chemistry teacher turns to crime to secure his family's future.",
+                genres: [Genre(id: 18, name: "Drama")],
+                status: .ended,
+                lastAirDate: DateParsing.parseTMDBDate("2013-09-29"),
+                nextEpisodeAirDate: nil,
+                airedEpisodeCount: 62
+            ),
+            Show(
+                id: 66732,
+                name: "Stranger Things",
+                posterPath: nil,
+                overview: "A group of kids uncover supernatural mysteries in their small town.",
+                genres: [Genre(id: 18, name: "Drama")],
+                status: .returningSeries,
+                lastAirDate: DateParsing.parseTMDBDate("2022-07-01"),
+                nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-10-09"),
+                airedEpisodeCount: 34
+            ),
+            Show(
+                id: 94997,
+                name: "House of the Dragon",
+                posterPath: nil,
+                overview: "The Targaryen dynasty is at the absolute apex of its power.",
+                genres: [Genre(id: 10765, name: "Sci-Fi & Fantasy")],
+                status: .returningSeries,
+                lastAirDate: DateParsing.parseTMDBDate("2024-08-04"),
+                nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-06-14"),
+                airedEpisodeCount: 18
+            ),
+            Show(
+                id: 1429,
+                name: "Attack on Titan",
+                posterPath: nil,
+                overview: "Humanity fights for survival behind walls against giant Titans.",
+                genres: [Genre(id: 16, name: "Animation")],
+                status: .ended,
+                lastAirDate: DateParsing.parseTMDBDate("2023-11-04"),
+                nextEpisodeAirDate: nil,
+                airedEpisodeCount: 94
+            )
+        ]
     }
 }

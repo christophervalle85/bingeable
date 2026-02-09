@@ -248,6 +248,11 @@ final class DiscoverViewModel: ObservableObject {
     }
 
     private func startHydratingDetails(using repository: ShowRepository) {
+        guard !AppConfiguration.isRunningInPreviewHost || AppConfiguration.discoverPreviewDetailHydrationEnabled else {
+            isHydratingDetails = false
+            return
+        }
+
         let hydrationIDs = uniqueIDs(from: trending + popular).prefix(24)
         let ids = Array(hydrationIDs)
 
