@@ -14,6 +14,17 @@ struct bingeableApp: App {
 
         let appContainer = AppContainer()
         let libraryStore = LibraryStore(context: container.mainContext)
+        let environment = ProcessInfo.processInfo.environment
+
+        if environment["UI_TEST_RESET_LIBRARY"] == "1" {
+            libraryStore.clearAll()
+        }
+
+        if let rawSeedCount = environment["UI_TEST_LIBRARY_SEED_COUNT"],
+           let seedCount = Int(rawSeedCount),
+           seedCount > 0 {
+            Self.seedLibraryForUITests(count: seedCount, store: libraryStore)
+        }
         _appContainer = StateObject(wrappedValue: appContainer)
         _libraryStore = StateObject(wrappedValue: libraryStore)
     }
@@ -36,6 +47,35 @@ struct bingeableApp: App {
             NSLog("Failed to open persistent ModelContainer: \(error.localizedDescription)")
             let fallback = ModelConfiguration(isStoredInMemoryOnly: true)
             return try! ModelContainer(for: TrackedShowEntity.self, configurations: fallback)
+        }
+    }
+
+    private static func seedLibraryForUITests(count: Int, store: LibraryStore) {
+        for index in 0..<count {
+            let show = Show(
+                id: 9_900_000 + index,
+                name: "Seed Show \(index + 1)",
+                posterPath: nil,
+                overview: "Seeded show for UI tests.",
+                genres: [],
+                status: nil,
+                lastAirDate: nil,
+                nextEpisodeAirDate: nil,
+                airedEpisodeCount: nil
+            )
+
+            // Alternate shelves so stats and inline move actions are exercised.
+            let shelf: LibraryShelf
+            switch index % 3 {
+            case 0:
+                shelf = .waiting
+            case 1:
+                shelf = .watching
+            default:
+                shelf = .finished
+            }
+
+            store.upsert(show: show, shelf: shelf)
         }
     }
 }

@@ -28,20 +28,14 @@ final class LibraryStore: ObservableObject {
         items.first(where: { $0.showID == showID })?.shelf
     }
 
+    func allTrackedShows() -> [TrackedShow] {
+        items.map(mapTrackedShow(from:))
+    }
+
     func trackedShows(in shelf: LibraryShelf) -> [TrackedShow] {
         items
             .filter { $0.shelf == shelf }
-            .map {
-                TrackedShow(
-                    id: $0.showID,
-                    shelf: $0.shelf,
-                    addedAt: $0.addedAt,
-                    updatedAt: $0.updatedAt,
-                    name: $0.name,
-                    posterPath: $0.posterPath,
-                    overview: $0.overview
-                )
-            }
+            .map(mapTrackedShow(from:))
     }
 
     func upsert(show: Show, shelf: LibraryShelf) {
@@ -72,6 +66,36 @@ final class LibraryStore: ObservableObject {
 
         context.delete(existing)
         saveAndRefresh()
+    }
+
+    func move(showID: Int, to shelf: LibraryShelf) {
+        guard let existing = items.first(where: { $0.showID == showID }) else {
+            return
+        }
+
+        existing.shelf = shelf
+        existing.updatedAt = .now
+        saveAndRefresh()
+    }
+
+    func clearAll() {
+        for item in items {
+            context.delete(item)
+        }
+
+        saveAndRefresh()
+    }
+
+    private func mapTrackedShow(from entity: TrackedShowEntity) -> TrackedShow {
+        TrackedShow(
+            id: entity.showID,
+            shelf: entity.shelf,
+            addedAt: entity.addedAt,
+            updatedAt: entity.updatedAt,
+            name: entity.name,
+            posterPath: entity.posterPath,
+            overview: entity.overview
+        )
     }
 
     private func saveAndRefresh() {
