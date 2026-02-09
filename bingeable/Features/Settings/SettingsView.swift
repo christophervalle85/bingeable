@@ -3,7 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     private enum ProfileSection: Hashable {
         case profile
-        case edit
+        case editProfile
+        case subscriptions
         case appSettings
     }
 
@@ -27,10 +28,11 @@ struct SettingsView: View {
                     switch selectedSection {
                     case .profile:
                         profileHeaderCard
-                        profileInsightsCard
+                        subscriptionOverviewCard
                         queuePulseCard
-                    case .edit:
+                    case .editProfile:
                         editProfileCard
+                    case .subscriptions:
                         providerCard
                     case .appSettings:
                         appSettingsCard
@@ -125,38 +127,21 @@ struct SettingsView: View {
                 Spacer(minLength: 0)
             }
 
-            if !viewModel.selectedProviders.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(viewModel.selectedProviders) { provider in
-                            Label(provider.name, systemImage: "checkmark.circle.fill")
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(Color.green.opacity(0.15), in: Capsule())
-                        }
-                    }
-                }
-                .accessibilityIdentifier("profile-selected-providers")
-            }
+            Text("Quick access to profile updates, services, and queue activity.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
-            HStack {
-                Label("\(viewModel.selectedProviderIDs.count) subscriptions", systemImage: "tv")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        selectedSection = .edit
-                    }
-                } label: {
-                    Label("Edit Profile", systemImage: "pencil")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.cyan)
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    selectedSection = .editProfile
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("profile-edit-button")
+            } label: {
+                Label("Edit Profile", systemImage: "pencil")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("profile-edit-button")
         }
         .padding(14)
         .background(cardBackground)
@@ -164,41 +149,57 @@ struct SettingsView: View {
         .accessibilityIdentifier("profile-header-card")
     }
 
-    private var profileInsightsCard: some View {
+    private var subscriptionOverviewCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Profile Summary", systemImage: "person.text.rectangle")
+            Label("Streaming Subscriptions", systemImage: "tv")
                 .font(.headline)
 
-            infoRow(title: "Display Name", value: viewModel.displayName)
-            infoRow(title: "Avatar Style", value: viewModel.avatarStyle.title)
-            infoRow(title: "Account Scope", value: viewModel.accountBadgeText)
-            infoRow(title: "Subscriptions", value: "\(viewModel.selectedProviderIDs.count) selected")
+            infoRow(
+                title: "Selected",
+                value: "\(viewModel.selectedProviderIDs.count) of \(viewModel.providerOptions.count)"
+            )
 
-            if !viewModel.selectedProviders.isEmpty {
-                Divider()
-                Text("Top Services")
-                    .font(.caption.weight(.semibold))
+            if viewModel.selectedProviders.isEmpty {
+                Text("No services selected yet. Add your subscriptions to personalize recommendations.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-
-                HStack(spacing: 8) {
-                    ForEach(Array(viewModel.selectedProviders.prefix(3))) { provider in
-                        Text(provider.name)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.cyan.opacity(0.15), in: Capsule())
-                    }
-
-                    if viewModel.selectedProviders.count > 3 {
-                        Text("+\(viewModel.selectedProviders.count - 3)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), spacing: 8)], spacing: 8) {
+                    ForEach(viewModel.selectedProviders) { provider in
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(provider.name)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
+                        .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                 }
             }
+
+            Text("\(unselectedProviderCount) more services available to add")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    selectedSection = .subscriptions
+                }
+            } label: {
+                Label("Manage Services", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("profile-manage-services")
         }
         .padding(14)
         .background(cardBackground)
+        .accessibilityIdentifier("profile-subscriptions-card")
     }
 
     private var queuePulseCard: some View {
@@ -249,36 +250,11 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 10) {
-                Button("Reset") {
-                    viewModel.resetToSaved()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.isDirty)
-                .accessibilityIdentifier("profile-reset-button")
-
-                Button("Save") {
-                    viewModel.save()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!viewModel.isDirty)
-                .accessibilityIdentifier("profile-save-button")
-
-                Spacer()
-
-                Button("Done") {
-                    viewModel.saveIfNeeded()
-                    withAnimation(.snappy(duration: 0.2)) {
-                        selectedSection = .profile
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.subheadline.weight(.semibold))
-                .accessibilityIdentifier("profile-done-button")
-            }
+            editorActionRow(doneButtonID: "profile-done-button")
         }
         .padding(14)
         .background(cardBackground)
+        .accessibilityIdentifier("profile-edit-section")
     }
 
     @ViewBuilder
@@ -326,6 +302,10 @@ struct SettingsView: View {
         libraryStore.items.max(by: { $0.updatedAt < $1.updatedAt })?.name
     }
 
+    private var unselectedProviderCount: Int {
+        max(0, viewModel.providerOptions.count - viewModel.selectedProviderIDs.count)
+    }
+
     private var providerCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Streaming Subscriptions", systemImage: "tv")
@@ -360,9 +340,42 @@ struct SettingsView: View {
                     .accessibilityValue(isSelected ? "selected" : "not-selected")
                 }
             }
+
+            editorActionRow(doneButtonID: "profile-subscriptions-done-button")
         }
         .padding(14)
         .background(cardBackground)
+        .accessibilityIdentifier("profile-subscriptions-section")
+    }
+
+    private func editorActionRow(doneButtonID: String) -> some View {
+        HStack(spacing: 10) {
+            Button("Reset") {
+                viewModel.resetToSaved()
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.isDirty)
+            .accessibilityIdentifier("profile-reset-button")
+
+            Button("Save") {
+                viewModel.save()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!viewModel.isDirty)
+            .accessibilityIdentifier("profile-save-button")
+
+            Spacer()
+
+            Button("Done") {
+                viewModel.saveIfNeeded()
+                withAnimation(.snappy(duration: 0.2)) {
+                    selectedSection = .profile
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.subheadline.weight(.semibold))
+            .accessibilityIdentifier(doneButtonID)
+        }
     }
 
     private var appSettingsCard: some View {
@@ -423,6 +436,7 @@ struct SettingsView: View {
         }
         .padding(14)
         .background(cardBackground)
+        .accessibilityIdentifier("profile-app-settings-section")
     }
 
     private var cardBackground: some View {

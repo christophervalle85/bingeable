@@ -20,7 +20,7 @@ final class SettingsViewUITests: XCTestCase {
     func testDisplayNamePersistsAcrossRelaunch() throws {
         let app = launchAppAndContinueAsGuest(resetProfile: true)
         openProfileTab(app)
-        app.buttons["profile-edit-button"].tap()
+        openEditSection(app)
 
         let nameField = app.textFields["profile-display-name-field"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 8))
@@ -34,7 +34,7 @@ final class SettingsViewUITests: XCTestCase {
 
         let relaunched = launchAppAndContinueAsGuest(resetProfile: false)
         openProfileTab(relaunched)
-        relaunched.buttons["profile-edit-button"].tap()
+        openEditSection(relaunched)
 
         let reloadedNameField = relaunched.textFields["profile-display-name-field"]
         XCTAssertTrue(reloadedNameField.waitForExistence(timeout: 8))
@@ -45,19 +45,21 @@ final class SettingsViewUITests: XCTestCase {
     func testProviderSelectionPersistsAcrossRelaunch() throws {
         let app = launchAppAndContinueAsGuest(resetProfile: true)
         openProfileTab(app)
-        app.buttons["profile-edit-button"].tap()
+        openSubscriptionsSection(app)
 
         let netflixButton = app.buttons["profile-provider-8"]
         XCTAssertTrue(netflixButton.waitForExistence(timeout: 8))
         netflixButton.tap()
 
-        app.buttons["profile-save-button"].tap()
+        let saveButton = app.buttons["profile-save-button"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 4))
+        saveButton.tap()
 
         app.terminate()
 
         let relaunched = launchAppAndContinueAsGuest(resetProfile: false)
         openProfileTab(relaunched)
-        relaunched.buttons["profile-edit-button"].tap()
+        openSubscriptionsSection(relaunched)
 
         let reloadedNetflix = relaunched.buttons["profile-provider-8"]
         XCTAssertTrue(reloadedNetflix.waitForExistence(timeout: 8))
@@ -68,7 +70,7 @@ final class SettingsViewUITests: XCTestCase {
     func testClearCacheAndSignOutFlow() throws {
         let app = launchAppAndContinueAsGuest(resetProfile: true)
         openProfileTab(app)
-        app.buttons["profile-open-settings"].tap()
+        openAppSettingsSection(app)
 
         let clearButton = app.buttons["profile-cache-clear"]
         XCTAssertTrue(clearButton.waitForExistence(timeout: 8))
@@ -120,5 +122,84 @@ final class SettingsViewUITests: XCTestCase {
         }
 
         element.typeText(text)
+    }
+
+    private func tapElement(_ element: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(element.waitForExistence(timeout: 8))
+
+        if element.isHittable {
+            element.tap()
+            return
+        }
+
+        for _ in 0..<5 {
+            app.swipeUp()
+            if element.isHittable {
+                element.tap()
+                return
+            }
+        }
+
+        for _ in 0..<5 {
+            app.swipeDown()
+            if element.isHittable {
+                element.tap()
+                return
+            }
+        }
+
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
+    private func goToProfileHome(_ app: XCUIApplication) {
+        if app.buttons["profile-back-button"].exists {
+            tapElement(app.buttons["profile-back-button"], in: app)
+        }
+
+        XCTAssertTrue(app.otherElements["profile-header-card"].waitForExistence(timeout: 8))
+    }
+
+    private func openSection(
+        using buttonID: String,
+        destination: XCUIElement,
+        in app: XCUIApplication
+    ) {
+        let button = app.buttons[buttonID]
+
+        for _ in 0..<2 {
+            tapElement(button, in: app)
+            if destination.waitForExistence(timeout: 3) {
+                return
+            }
+        }
+
+        XCTAssertTrue(destination.waitForExistence(timeout: 8))
+    }
+
+    private func openEditSection(_ app: XCUIApplication) {
+        goToProfileHome(app)
+        openSection(
+            using: "profile-edit-button",
+            destination: app.otherElements["profile-edit-section"],
+            in: app
+        )
+    }
+
+    private func openSubscriptionsSection(_ app: XCUIApplication) {
+        goToProfileHome(app)
+        openSection(
+            using: "profile-manage-services",
+            destination: app.otherElements["profile-subscriptions-section"],
+            in: app
+        )
+    }
+
+    private func openAppSettingsSection(_ app: XCUIApplication) {
+        goToProfileHome(app)
+        openSection(
+            using: "profile-open-settings",
+            destination: app.otherElements["profile-app-settings-section"],
+            in: app
+        )
     }
 }
