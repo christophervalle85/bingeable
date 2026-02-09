@@ -35,7 +35,10 @@ struct LibraryHeaderView: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 104), spacing: 10)],
+                spacing: 10
+            ) {
                 statCard(
                     title: "Ready",
                     value: summary.readyCount,
@@ -75,10 +78,15 @@ struct LibraryHeaderView: View {
         identifier: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: systemImage)
+                Text(title)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
 
             Text("\(value)")
                 .font(.system(size: 22, weight: .black, design: .rounded))
@@ -86,6 +94,7 @@ struct LibraryHeaderView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }
+        .frame(minHeight: 64, alignment: .topLeading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
