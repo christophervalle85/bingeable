@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PosterImageView: View {
+    @Environment(\.displayScale) private var displayScale
+
     let posterPath: String?
     let width: CGFloat
     let height: CGFloat
@@ -56,6 +58,22 @@ struct PosterImageView: View {
             normalizedPath = posterPath
         }
 
-        return AppConfiguration.tmdbImageBaseURL.appendingPathComponent(normalizedPath)
+        // For posters, request based on rendered width and clamp DPR to reduce decode pressure in scrolling lists.
+        let requestedPixels = Int(width * min(displayScale, 2.0))
+        let size = posterSizeForTMDB(requestedPixels: requestedPixels)
+
+        return AppConfiguration.tmdbImageBaseURL
+            .appendingPathComponent(size)
+            .appendingPathComponent(normalizedPath)
+    }
+
+    private func posterSizeForTMDB(requestedPixels: Int) -> String {
+        // TMDB poster size tiers. Pick the smallest tier that satisfies the rendered size.
+        let supported = [92, 154, 185, 342, 500]
+        if let match = supported.first(where: { requestedPixels <= $0 }) {
+            return "w\(match)"
+        }
+        // Avoid very large poster variants to reduce decode/memory spikes in scrolling views.
+        return "w500"
     }
 }
