@@ -17,6 +17,7 @@ private final class PreviewDependencies: ObservableObject {
     let appContainer: AppContainer
     let modelContainer: ModelContainer
     let libraryStore: LibraryStore
+    let profileSettingsStore: ProfileSettingsStore
 
     init() {
         self.appContainer = AppContainer()
@@ -24,6 +25,7 @@ private final class PreviewDependencies: ObservableObject {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         self.modelContainer = try! ModelContainer(for: TrackedShowEntity.self, configurations: config)
         self.libraryStore = LibraryStore(context: modelContainer.mainContext)
+        self.profileSettingsStore = ProfileSettingsStore()
     }
 }
 
@@ -35,6 +37,7 @@ private struct ContentPreviewRoot: View {
             .environmentObject(deps.appContainer)
             .environmentObject(deps.appContainer.sessionManager)
             .environmentObject(deps.libraryStore)
+            .environmentObject(deps.profileSettingsStore)
             .modelContainer(deps.modelContainer)
     }
 }

@@ -28,7 +28,7 @@ struct MainTabView: View {
                 SettingsView()
             }
             .tabItem {
-                Label("Settings", systemImage: "gearshape")
+                Label("Profile", systemImage: "person.crop.circle")
             }
         }
     }
