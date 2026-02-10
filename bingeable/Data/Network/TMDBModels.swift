@@ -10,6 +10,8 @@ nonisolated struct TMDBShowSummaryDTO: Decodable {
     let posterPath: String?
     let overview: String
     let genreIds: [Int]?
+    let voteAverage: Double?
+    let voteCount: Int?
 }
 
 nonisolated struct TMDBGenreDTO: Decodable {
@@ -33,6 +35,8 @@ nonisolated struct TMDBShowDetailDTO: Decodable {
     let nextEpisodeToAir: TMDBEpisodeDTO?
     let lastEpisodeToAir: TMDBEpisodeDTO?
     let numberOfEpisodes: Int?
+    let voteAverage: Double?
+    let voteCount: Int?
 }
 
 nonisolated struct TMDBWatchProviderResponse: Decodable {

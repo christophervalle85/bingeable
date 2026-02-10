@@ -65,6 +65,34 @@ struct Show: Identifiable, Hashable, Codable {
     let lastAirDate: Date?
     let nextEpisodeAirDate: Date?
     let airedEpisodeCount: Int?
+    let voteAverage: Double?
+    let voteCount: Int?
+
+    nonisolated init(
+        id: Int,
+        name: String,
+        posterPath: String?,
+        overview: String,
+        genres: [Genre],
+        status: ShowStatus?,
+        lastAirDate: Date?,
+        nextEpisodeAirDate: Date?,
+        airedEpisodeCount: Int?,
+        voteAverage: Double? = nil,
+        voteCount: Int? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.posterPath = posterPath
+        self.overview = overview
+        self.genres = genres
+        self.status = status
+        self.lastAirDate = lastAirDate
+        self.nextEpisodeAirDate = nextEpisodeAirDate
+        self.airedEpisodeCount = airedEpisodeCount
+        self.voteAverage = voteAverage
+        self.voteCount = voteCount
+    }
 
     var bingeableState: BingeableState {
         BingeableEvaluator.evaluate(show: self)

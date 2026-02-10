@@ -17,18 +17,19 @@ struct ShowDetailView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    headerCard
-                    metadataCard
-                    overviewCard
-                    libraryCard
+                VStack(alignment: .leading, spacing: 18) {
+                    heroSection
+                    statsSection
                     providersCard
+                    libraryCard
+                    metadataCard
 
                     if let errorMessage = viewModel.errorMessage {
                         errorBanner(message: errorMessage)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
             }
         }
         .overlay {
@@ -47,68 +48,126 @@ struct ShowDetailView: View {
         }
     }
 
-    private var headerCard: some View {
-        HStack(alignment: .top, spacing: 14) {
-            PosterImageView(posterPath: viewModel.show.posterPath, width: 104, height: 156)
+    private var heroSection: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = min(max(width * 1.2, 360), 500)
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(viewModel.show.name)
-                    .font(.title3.weight(.bold))
+            ZStack(alignment: .bottomLeading) {
+                PosterImageView(
+                    posterPath: viewModel.show.posterPath,
+                    width: width,
+                    height: height
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .black.opacity(0.2),
+                                    .black.opacity(0.58),
+                                    .black.opacity(0.95)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
 
-                BingeableBadgeView(state: viewModel.show.bingeableState)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("SERIES")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.2), in: Capsule())
 
-                if !viewModel.show.genres.isEmpty {
-                    Text(viewModel.show.genres.map(\.name).joined(separator: " • "))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(viewModel.show.name)
+                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .fontWidth(.compressed)
+                        .foregroundStyle(.white)
                         .lineLimit(2)
+
+                    HStack(spacing: 8) {
+                        BingeableBadgeView(state: viewModel.show.bingeableState)
+
+                        if let status = viewModel.show.status {
+                            detailChip(
+                                text: status.displayName,
+                                systemImage: "dot.radiowaves.left.and.right"
+                            )
+                        }
+                    }
+
+                    if !genreLine.isEmpty {
+                        Text(genreLine)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .lineLimit(2)
+                    }
+
+                    Text(viewModel.show.overview.isEmpty ? "No overview available." : viewModel.show.overview)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.86))
+                        .lineLimit(4)
+                }
+                .padding(20)
+            }
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
+        }
+        .frame(height: 420)
+    }
+
+    private var statsSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(stats) { stat in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(stat.title, systemImage: stat.symbol)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Text(stat.value)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(detailCardBackground)
                 }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(14)
-        .background(detailCardBackground)
     }
 
     private var metadataCard: some View {
-        detailCard(title: "At a glance", systemImage: "rectangle.stack.person.crop") {
-            VStack(spacing: 12) {
-                if let status = viewModel.show.status {
-                    metadataRow(title: "Status", value: status.displayName)
+        detailCard(title: "Details", systemImage: "info.circle") {
+            VStack(spacing: 11) {
+                metadataRow(title: "Status", value: viewModel.show.status?.displayName ?? "Unknown")
+
+                if let nextEpisodeAirDate = viewModel.show.nextEpisodeAirDate {
+                    metadataRow(title: "Next episode", value: DateParsing.mediumDateFormatter.string(from: nextEpisodeAirDate))
                 }
 
                 if let lastAirDate = viewModel.show.lastAirDate {
                     metadataRow(title: "Last aired", value: DateParsing.mediumDateFormatter.string(from: lastAirDate))
                 }
 
-                if let nextEpisodeAirDate = viewModel.show.nextEpisodeAirDate {
-                    metadataRow(title: "Next episode", value: DateParsing.mediumDateFormatter.string(from: nextEpisodeAirDate))
-                }
-
-                if viewModel.show.status == nil,
-                    viewModel.show.lastAirDate == nil,
-                    viewModel.show.nextEpisodeAirDate == nil {
-                    Text("No metadata available yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if let airedEpisodeCount = viewModel.show.airedEpisodeCount {
+                    metadataRow(title: "Episodes", value: String(airedEpisodeCount))
                 }
             }
         }
     }
 
-    private var overviewCard: some View {
-        detailCard(title: "Overview", systemImage: "text.alignleft") {
-            Text(viewModel.show.overview.isEmpty ? "No overview available." : viewModel.show.overview)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     private var libraryCard: some View {
-        detailCard(title: "Library", systemImage: "books.vertical") {
+        detailCard(title: "Your Library", systemImage: "books.vertical") {
             VStack(alignment: .leading, spacing: 12) {
                 if let currentShelf = libraryStore.shelf(for: viewModel.show.id) {
                     Label("Saved in \(currentShelf.title)", systemImage: currentShelf.systemImage)
@@ -157,20 +216,16 @@ struct ShowDetailView: View {
     }
 
     private var providersCard: some View {
-        detailCard(title: "Watch providers", systemImage: "play.tv") {
+        detailCard(title: "Streaming On", systemImage: "play.tv") {
             if providers.isEmpty {
                 Text("No streaming provider data available for your region.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         ForEach(providers) { provider in
-                            Text(provider.name)
-                                .font(.subheadline.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(.thinMaterial, in: Capsule())
+                            providerTile(provider)
                         }
                     }
                 }
@@ -191,7 +246,7 @@ struct ShowDetailView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: systemImage)
-                .font(.headline)
+                .font(.headline.weight(.bold))
 
             content()
         }
@@ -210,6 +265,59 @@ struct ShowDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func providerTile(_ provider: WatchProvider) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.42 : 0.09))
+
+                if let logoURL = providerLogoURL(path: provider.logoPath) {
+                    AsyncImage(url: logoURL) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .padding(8)
+                        case .empty, .failure:
+                            fallbackProviderIcon
+                        @unknown default:
+                            fallbackProviderIcon
+                        }
+                    }
+                } else {
+                    fallbackProviderIcon
+                }
+            }
+            .frame(width: 104, height: 56)
+
+            Text(provider.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .foregroundStyle(.primary)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.thinMaterial)
+        )
+    }
+
+    private var fallbackProviderIcon: some View {
+        Image(systemName: "play.rectangle.fill")
+            .font(.headline)
+            .foregroundStyle(.secondary)
+    }
+
+    private func detailChip(text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.92))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.18), in: Capsule())
     }
 
     private var detailCardBackground: some View {
@@ -236,6 +344,77 @@ struct ShowDetailView: View {
         .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
+    private var genreLine: String {
+        viewModel.show.genres.map(\.name).joined(separator: " • ")
+    }
+
+    private var stats: [DetailStat] {
+        var result: [DetailStat] = []
+
+        if let ratingText = ratingText {
+            result.append(DetailStat(title: "TMDB Rating", value: ratingText, symbol: "star.fill"))
+        }
+
+        if let voteCount = viewModel.show.voteCount, voteCount > 0 {
+            result.append(
+                DetailStat(
+                    title: "Votes",
+                    value: compactIntegerFormatter.string(from: NSNumber(value: voteCount)) ?? "\(voteCount)",
+                    symbol: "person.2.fill"
+                )
+            )
+        }
+
+        if let airedEpisodeCount = viewModel.show.airedEpisodeCount, airedEpisodeCount > 0 {
+            result.append(DetailStat(title: "Episodes", value: "\(airedEpisodeCount)", symbol: "film.stack"))
+        }
+
+        if let status = viewModel.show.status {
+            result.append(DetailStat(title: "Status", value: status.displayName, symbol: "dot.radiowaves.left.and.right"))
+        }
+
+        if let nextEpisodeAirDate = viewModel.show.nextEpisodeAirDate {
+            result.append(
+                DetailStat(
+                    title: "Next Episode",
+                    value: DateParsing.mediumDateFormatter.string(from: nextEpisodeAirDate),
+                    symbol: "calendar"
+                )
+            )
+        }
+
+        if result.isEmpty {
+            result.append(DetailStat(title: "Status", value: "Details Loading", symbol: "clock"))
+        }
+
+        return result
+    }
+
+    private var ratingText: String? {
+        guard let voteAverage = viewModel.show.voteAverage, voteAverage > 0 else {
+            return nil
+        }
+        return String(format: "%.1f / 10", voteAverage)
+    }
+
+    private var compactIntegerFormatter: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        return formatter
+    }
+
+    private func providerLogoURL(path: String?) -> URL? {
+        guard let path, !path.isEmpty else {
+            return nil
+        }
+
+        let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        return AppConfiguration.tmdbImageBaseURL
+            .appendingPathComponent("w92")
+            .appendingPathComponent(normalizedPath)
+    }
+
     private func tintForShelf(_ shelf: LibraryShelf) -> Color {
         switch shelf {
         case .waiting:
@@ -260,12 +439,19 @@ struct ShowDetailView: View {
     private var background: some View {
         LinearGradient(
             colors: [
-                Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12),
-                Color.indigo.opacity(colorScheme == .dark ? 0.12 : 0.06),
+                Color.red.opacity(colorScheme == .dark ? 0.28 : 0.12),
+                Color.black.opacity(colorScheme == .dark ? 0.34 : 0.1),
                 platformBackgroundColor
             ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
+}
+
+private struct DetailStat: Identifiable {
+    let id = UUID()
+    let title: String
+    let value: String
+    let symbol: String
 }

@@ -22,7 +22,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2013-09-29"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 62
+            airedEpisodeCount: 62,
+            voteAverage: 8.9,
+            voteCount: 14500
         ),
         Show(
             id: 2316,
@@ -33,7 +35,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2013-05-16"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 201
+            airedEpisodeCount: 201,
+            voteAverage: 8.6,
+            voteCount: 2900
         ),
         Show(
             id: 94997,
@@ -44,7 +48,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .returningSeries,
             lastAirDate: DateParsing.parseTMDBDate("2024-08-04"),
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-06-14"),
-            airedEpisodeCount: 18
+            airedEpisodeCount: 18,
+            voteAverage: 8.3,
+            voteCount: 5100
         ),
         Show(
             id: 1429,
@@ -55,7 +61,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2023-11-04"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 94
+            airedEpisodeCount: 94,
+            voteAverage: 8.7,
+            voteCount: 6400
         ),
         Show(
             id: 66732,
@@ -66,7 +74,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .returningSeries,
             lastAirDate: DateParsing.parseTMDBDate("2022-07-01"),
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-10-09"),
-            airedEpisodeCount: 34
+            airedEpisodeCount: 34,
+            voteAverage: 8.6,
+            voteCount: 18200
         ),
         Show(
             id: 94605,
@@ -77,7 +87,9 @@ actor PreviewShowRepository: ShowRepository {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2024-11-23"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 18
+            airedEpisodeCount: 18,
+            voteAverage: 8.7,
+            voteCount: 4200
         )
     ]
 

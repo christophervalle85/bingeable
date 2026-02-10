@@ -167,7 +167,9 @@ actor TMDBShowRepository: ShowRepository {
             status: nil,
             lastAirDate: nil,
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: nil
+            airedEpisodeCount: nil,
+            voteAverage: dto.voteAverage,
+            voteCount: dto.voteCount
         )
     }
 
@@ -184,7 +186,9 @@ actor TMDBShowRepository: ShowRepository {
             status: ShowStatus(tmdbValue: dto.status),
             lastAirDate: DateParsing.parseTMDBDate(dto.lastAirDate),
             nextEpisodeAirDate: DateParsing.parseTMDBDate(dto.nextEpisodeToAir?.airDate),
-            airedEpisodeCount: airedCount
+            airedEpisodeCount: airedCount,
+            voteAverage: dto.voteAverage,
+            voteCount: dto.voteCount
         )
     }
 }
@@ -200,7 +204,9 @@ private enum ShowFixtures {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2013-09-29"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 62
+            airedEpisodeCount: 62,
+            voteAverage: 8.9,
+            voteCount: 14500
         ),
         Show(
             id: 94605,
@@ -211,7 +217,9 @@ private enum ShowFixtures {
             status: .ended,
             lastAirDate: DateParsing.parseTMDBDate("2024-11-23"),
             nextEpisodeAirDate: nil,
-            airedEpisodeCount: 18
+            airedEpisodeCount: 18,
+            voteAverage: 8.7,
+            voteCount: 4200
         ),
         Show(
             id: 94997,
@@ -222,7 +230,9 @@ private enum ShowFixtures {
             status: .returningSeries,
             lastAirDate: DateParsing.parseTMDBDate("2024-08-04"),
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-06-14"),
-            airedEpisodeCount: 18
+            airedEpisodeCount: 18,
+            voteAverage: 8.3,
+            voteCount: 5100
         )
     ]
 
