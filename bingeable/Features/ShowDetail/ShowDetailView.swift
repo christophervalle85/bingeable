@@ -20,6 +20,7 @@ struct ShowDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     heroSection
                     statsSection
+                    releasedSeasonsCard
                     providersCard
                     libraryCard
                     metadataCard
@@ -51,7 +52,7 @@ struct ShowDetailView: View {
     private var heroSection: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
-            let height = min(max(width * 1.2, 360), 500)
+            let height: CGFloat = 420
 
             ZStack(alignment: .bottomLeading) {
                 PosterImageView(
@@ -161,6 +162,45 @@ struct ShowDetailView: View {
 
                 if let airedEpisodeCount = viewModel.show.airedEpisodeCount {
                     metadataRow(title: "Episodes", value: String(airedEpisodeCount))
+                }
+            }
+        }
+    }
+
+    private var releasedSeasonsCard: some View {
+        detailCard(title: "Released Seasons", systemImage: "film.stack.fill") {
+            if releasedSeasons.isEmpty {
+                if let airedEpisodeCount = viewModel.show.airedEpisodeCount, airedEpisodeCount > 0 {
+                    Text("\(airedEpisodeCount) episodes are currently released.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Season release data is not available yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(
+                        "Released: \(releasedSeasons.count) \(releasedSeasons.count == 1 ? "season" : "seasons"), \(releasedEpisodeTotal) episodes"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                    ForEach(releasedSeasons) { season in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text(seasonLabel(for: season))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+
+                            Spacer(minLength: 8)
+
+                            Text(seasonMetadata(for: season))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
         }
@@ -369,6 +409,10 @@ struct ShowDetailView: View {
             result.append(DetailStat(title: "Episodes", value: "\(airedEpisodeCount)", symbol: "film.stack"))
         }
 
+        if releasedEpisodeTotal > 0 {
+            result.append(DetailStat(title: "Released", value: "\(releasedEpisodeTotal) eps", symbol: "checkmark.circle.fill"))
+        }
+
         if let status = viewModel.show.status {
             result.append(DetailStat(title: "Status", value: status.displayName, symbol: "dot.radiowaves.left.and.right"))
         }
@@ -395,6 +439,45 @@ struct ShowDetailView: View {
             return nil
         }
         return String(format: "%.1f / 10", voteAverage)
+    }
+
+    private var releasedSeasons: [ShowSeason] {
+        let now = Date()
+        return (viewModel.show.seasons ?? [])
+            .filter { $0.seasonNumber > 0 }
+            .filter { season in
+                if let airDate = season.airDate {
+                    return airDate <= now
+                }
+                return (season.episodeCount ?? 0) > 0
+            }
+            .sorted { lhs, rhs in
+                lhs.seasonNumber < rhs.seasonNumber
+            }
+    }
+
+    private var releasedEpisodeTotal: Int {
+        releasedSeasons.reduce(0) { partialResult, season in
+            partialResult + (season.episodeCount ?? 0)
+        }
+    }
+
+    private func seasonLabel(for season: ShowSeason) -> String {
+        if season.name.lowercased().contains("season") {
+            return season.name
+        }
+        return "Season \(season.seasonNumber)"
+    }
+
+    private func seasonMetadata(for season: ShowSeason) -> String {
+        var segments: [String] = []
+        if let episodeCount = season.episodeCount, episodeCount > 0 {
+            segments.append("\(episodeCount) eps")
+        }
+        if let airDate = season.airDate {
+            segments.append(DateParsing.mediumDateFormatter.string(from: airDate))
+        }
+        return segments.isEmpty ? "Release date TBD" : segments.joined(separator: " • ")
     }
 
     private var compactIntegerFormatter: NumberFormatter {

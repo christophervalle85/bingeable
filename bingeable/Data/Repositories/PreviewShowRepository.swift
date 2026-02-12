@@ -24,7 +24,14 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 62,
             voteAverage: 8.9,
-            voteCount: 14500
+            voteCount: 14500,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2008-01-20"), episodeCount: 7),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2009-03-08"), episodeCount: 13),
+                ShowSeason(seasonNumber: 3, name: "Season 3", airDate: DateParsing.parseTMDBDate("2010-03-21"), episodeCount: 13),
+                ShowSeason(seasonNumber: 4, name: "Season 4", airDate: DateParsing.parseTMDBDate("2011-07-17"), episodeCount: 13),
+                ShowSeason(seasonNumber: 5, name: "Season 5", airDate: DateParsing.parseTMDBDate("2012-07-15"), episodeCount: 16)
+            ]
         ),
         Show(
             id: 2316,
@@ -37,7 +44,18 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 201,
             voteAverage: 8.6,
-            voteCount: 2900
+            voteCount: 2900,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2005-03-24"), episodeCount: 6),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2005-09-20"), episodeCount: 22),
+                ShowSeason(seasonNumber: 3, name: "Season 3", airDate: DateParsing.parseTMDBDate("2006-09-21"), episodeCount: 25),
+                ShowSeason(seasonNumber: 4, name: "Season 4", airDate: DateParsing.parseTMDBDate("2007-09-27"), episodeCount: 19),
+                ShowSeason(seasonNumber: 5, name: "Season 5", airDate: DateParsing.parseTMDBDate("2008-09-25"), episodeCount: 28),
+                ShowSeason(seasonNumber: 6, name: "Season 6", airDate: DateParsing.parseTMDBDate("2009-09-17"), episodeCount: 26),
+                ShowSeason(seasonNumber: 7, name: "Season 7", airDate: DateParsing.parseTMDBDate("2010-09-23"), episodeCount: 26),
+                ShowSeason(seasonNumber: 8, name: "Season 8", airDate: DateParsing.parseTMDBDate("2011-09-22"), episodeCount: 24),
+                ShowSeason(seasonNumber: 9, name: "Season 9", airDate: DateParsing.parseTMDBDate("2012-09-20"), episodeCount: 25)
+            ]
         ),
         Show(
             id: 94997,
@@ -50,7 +68,11 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-06-14"),
             airedEpisodeCount: 18,
             voteAverage: 8.3,
-            voteCount: 5100
+            voteCount: 5100,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2022-08-21"), episodeCount: 10),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2024-06-16"), episodeCount: 8)
+            ]
         ),
         Show(
             id: 1429,
@@ -63,7 +85,14 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 94,
             voteAverage: 8.7,
-            voteCount: 6400
+            voteCount: 6400,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2013-04-07"), episodeCount: 25),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2017-04-01"), episodeCount: 12),
+                ShowSeason(seasonNumber: 3, name: "Season 3", airDate: DateParsing.parseTMDBDate("2018-07-23"), episodeCount: 22),
+                ShowSeason(seasonNumber: 4, name: "Season 4", airDate: DateParsing.parseTMDBDate("2020-12-07"), episodeCount: 30),
+                ShowSeason(seasonNumber: 5, name: "Season 5", airDate: DateParsing.parseTMDBDate("2023-03-04"), episodeCount: 5)
+            ]
         ),
         Show(
             id: 66732,
@@ -76,7 +105,13 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-10-09"),
             airedEpisodeCount: 34,
             voteAverage: 8.6,
-            voteCount: 18200
+            voteCount: 18200,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2016-07-15"), episodeCount: 8),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2017-10-27"), episodeCount: 9),
+                ShowSeason(seasonNumber: 3, name: "Season 3", airDate: DateParsing.parseTMDBDate("2019-07-04"), episodeCount: 8),
+                ShowSeason(seasonNumber: 4, name: "Season 4", airDate: DateParsing.parseTMDBDate("2022-05-27"), episodeCount: 9)
+            ]
         ),
         Show(
             id: 94605,
@@ -89,7 +124,11 @@ actor PreviewShowRepository: ShowRepository {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 18,
             voteAverage: 8.7,
-            voteCount: 4200
+            voteCount: 4200,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2021-11-06"), episodeCount: 9),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2024-11-09"), episodeCount: 9)
+            ]
         )
     ]
 

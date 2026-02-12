@@ -5,6 +5,17 @@ struct Genre: Codable, Hashable, Identifiable {
     let name: String
 }
 
+struct ShowSeason: Codable, Hashable, Identifiable {
+    let seasonNumber: Int
+    let name: String
+    let airDate: Date?
+    let episodeCount: Int?
+
+    var id: Int {
+        seasonNumber
+    }
+}
+
 enum ShowStatus: Codable, Hashable {
     case ended
     case returningSeries
@@ -67,6 +78,7 @@ struct Show: Identifiable, Hashable, Codable {
     let airedEpisodeCount: Int?
     let voteAverage: Double?
     let voteCount: Int?
+    let seasons: [ShowSeason]?
 
     nonisolated init(
         id: Int,
@@ -79,7 +91,8 @@ struct Show: Identifiable, Hashable, Codable {
         nextEpisodeAirDate: Date?,
         airedEpisodeCount: Int?,
         voteAverage: Double? = nil,
-        voteCount: Int? = nil
+        voteCount: Int? = nil,
+        seasons: [ShowSeason]? = nil
     ) {
         self.id = id
         self.name = name
@@ -92,6 +105,7 @@ struct Show: Identifiable, Hashable, Codable {
         self.airedEpisodeCount = airedEpisodeCount
         self.voteAverage = voteAverage
         self.voteCount = voteCount
+        self.seasons = seasons
     }
 
     var bingeableState: BingeableState {

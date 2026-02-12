@@ -176,6 +176,17 @@ actor TMDBShowRepository: ShowRepository {
     nonisolated private static func mapDetail(_ dto: TMDBShowDetailDTO) -> Show {
         let genres = dto.genres.map { Genre(id: $0.id, name: $0.name) }
         let airedCount = dto.lastEpisodeToAir?.episodeNumber ?? dto.numberOfEpisodes
+        let seasons = dto.seasons?
+            .filter { $0.seasonNumber > 0 }
+            .map { season in
+                let trimmedName = season.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return ShowSeason(
+                    seasonNumber: season.seasonNumber,
+                    name: trimmedName.isEmpty ? "Season \(season.seasonNumber)" : trimmedName,
+                    airDate: DateParsing.parseTMDBDate(season.airDate),
+                    episodeCount: season.episodeCount
+                )
+            }
 
         return Show(
             id: dto.id,
@@ -188,7 +199,8 @@ actor TMDBShowRepository: ShowRepository {
             nextEpisodeAirDate: DateParsing.parseTMDBDate(dto.nextEpisodeToAir?.airDate),
             airedEpisodeCount: airedCount,
             voteAverage: dto.voteAverage,
-            voteCount: dto.voteCount
+            voteCount: dto.voteCount,
+            seasons: seasons
         )
     }
 }
@@ -206,7 +218,14 @@ private enum ShowFixtures {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 62,
             voteAverage: 8.9,
-            voteCount: 14500
+            voteCount: 14500,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2008-01-20"), episodeCount: 7),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2009-03-08"), episodeCount: 13),
+                ShowSeason(seasonNumber: 3, name: "Season 3", airDate: DateParsing.parseTMDBDate("2010-03-21"), episodeCount: 13),
+                ShowSeason(seasonNumber: 4, name: "Season 4", airDate: DateParsing.parseTMDBDate("2011-07-17"), episodeCount: 13),
+                ShowSeason(seasonNumber: 5, name: "Season 5", airDate: DateParsing.parseTMDBDate("2012-07-15"), episodeCount: 16)
+            ]
         ),
         Show(
             id: 94605,
@@ -219,7 +238,11 @@ private enum ShowFixtures {
             nextEpisodeAirDate: nil,
             airedEpisodeCount: 18,
             voteAverage: 8.7,
-            voteCount: 4200
+            voteCount: 4200,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2021-11-06"), episodeCount: 9),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2024-11-09"), episodeCount: 9)
+            ]
         ),
         Show(
             id: 94997,
@@ -232,7 +255,11 @@ private enum ShowFixtures {
             nextEpisodeAirDate: DateParsing.parseTMDBDate("2026-06-14"),
             airedEpisodeCount: 18,
             voteAverage: 8.3,
-            voteCount: 5100
+            voteCount: 5100,
+            seasons: [
+                ShowSeason(seasonNumber: 1, name: "Season 1", airDate: DateParsing.parseTMDBDate("2022-08-21"), episodeCount: 10),
+                ShowSeason(seasonNumber: 2, name: "Season 2", airDate: DateParsing.parseTMDBDate("2024-06-16"), episodeCount: 8)
+            ]
         )
     ]
 
