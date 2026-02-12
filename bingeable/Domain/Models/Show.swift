@@ -5,6 +5,29 @@ struct Genre: Codable, Hashable, Identifiable {
     let name: String
 }
 
+struct ShowSeason: Codable, Hashable, Identifiable {
+    let seasonNumber: Int
+    let name: String
+    let airDate: Date?
+    let episodeCount: Int?
+
+    var id: Int {
+        seasonNumber
+    }
+}
+
+struct ShowEpisode: Codable, Hashable, Identifiable {
+    let episodeNumber: Int
+    let name: String
+    let airDate: Date?
+    let overview: String
+    let runtimeMinutes: Int?
+
+    var id: Int {
+        episodeNumber
+    }
+}
+
 enum ShowStatus: Codable, Hashable {
     case ended
     case returningSeries
@@ -65,6 +88,37 @@ struct Show: Identifiable, Hashable, Codable {
     let lastAirDate: Date?
     let nextEpisodeAirDate: Date?
     let airedEpisodeCount: Int?
+    let voteAverage: Double?
+    let voteCount: Int?
+    let seasons: [ShowSeason]?
+
+    nonisolated init(
+        id: Int,
+        name: String,
+        posterPath: String?,
+        overview: String,
+        genres: [Genre],
+        status: ShowStatus?,
+        lastAirDate: Date?,
+        nextEpisodeAirDate: Date?,
+        airedEpisodeCount: Int?,
+        voteAverage: Double? = nil,
+        voteCount: Int? = nil,
+        seasons: [ShowSeason]? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.posterPath = posterPath
+        self.overview = overview
+        self.genres = genres
+        self.status = status
+        self.lastAirDate = lastAirDate
+        self.nextEpisodeAirDate = nextEpisodeAirDate
+        self.airedEpisodeCount = airedEpisodeCount
+        self.voteAverage = voteAverage
+        self.voteCount = voteCount
+        self.seasons = seasons
+    }
 
     var bingeableState: BingeableState {
         BingeableEvaluator.evaluate(show: self)
