@@ -31,6 +31,18 @@ nonisolated struct TMDBSeasonDTO: Decodable {
     let episodeCount: Int?
 }
 
+nonisolated struct TMDBSeasonEpisodeDTO: Decodable {
+    let episodeNumber: Int?
+    let name: String?
+    let airDate: String?
+    let overview: String?
+    let runtime: Int?
+}
+
+nonisolated struct TMDBSeasonDetailDTO: Decodable {
+    let episodes: [TMDBSeasonEpisodeDTO]
+}
+
 nonisolated struct TMDBShowDetailDTO: Decodable {
     let id: Int
     let name: String

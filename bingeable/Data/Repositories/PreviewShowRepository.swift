@@ -138,6 +138,80 @@ actor PreviewShowRepository: ShowRepository {
         WatchProvider(id: 384, name: "HBO Max", logoPath: nil)
     ]
 
+    private nonisolated static let fixtureSeasonEpisodes: [Int: [Int: [ShowEpisode]]] = [
+        1396: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Pilot",
+                    airDate: DateParsing.parseTMDBDate("2008-01-20"),
+                    overview: "Walter White begins a dangerous new path after a life-changing diagnosis.",
+                    runtimeMinutes: 58
+                ),
+                ShowEpisode(
+                    episodeNumber: 2,
+                    name: "Cat's in the Bag...",
+                    airDate: DateParsing.parseTMDBDate("2008-01-27"),
+                    overview: "Walt and Jesse deal with the consequences of their first cook.",
+                    runtimeMinutes: 48
+                )
+            ]
+        ],
+        2316: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Pilot",
+                    airDate: DateParsing.parseTMDBDate("2005-03-24"),
+                    overview: "A documentary crew starts following the Dunder Mifflin Scranton branch.",
+                    runtimeMinutes: 23
+                )
+            ]
+        ],
+        94997: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "The Heirs of the Dragon",
+                    airDate: DateParsing.parseTMDBDate("2022-08-21"),
+                    overview: "The succession question reshapes alliances in King Viserys' court.",
+                    runtimeMinutes: 66
+                )
+            ],
+            2: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "A Son for a Son",
+                    airDate: DateParsing.parseTMDBDate("2024-06-16"),
+                    overview: "The houses prepare for retaliation as open war approaches.",
+                    runtimeMinutes: 64
+                )
+            ]
+        ],
+        66732: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Chapter One: The Vanishing of Will Byers",
+                    airDate: DateParsing.parseTMDBDate("2016-07-15"),
+                    overview: "A young boy disappears and a strange girl appears in Hawkins.",
+                    runtimeMinutes: 49
+                )
+            ]
+        ],
+        94605: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Welcome to the Playground",
+                    airDate: DateParsing.parseTMDBDate("2021-11-06"),
+                    overview: "In Piltover and Zaun, simmering tensions push sisters onto separate paths.",
+                    runtimeMinutes: 41
+                )
+            ]
+        ]
+    ]
+
     func trendingShows() async throws -> [Show] {
         Self.fixtureShows
     }
@@ -168,6 +242,14 @@ actor PreviewShowRepository: ShowRepository {
 
     func watchProviders(showID _: Int) async throws -> [WatchProvider] {
         Self.fixtureProviders
+    }
+
+    func seasonEpisodes(showID: Int, seasonNumber: Int) async throws -> [ShowEpisode] {
+        guard seasonNumber > 0 else {
+            return []
+        }
+
+        return Self.fixtureSeasonEpisodes[showID]?[seasonNumber] ?? []
     }
 
     func clearCache() async {}

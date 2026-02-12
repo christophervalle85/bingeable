@@ -16,6 +16,18 @@ struct ShowSeason: Codable, Hashable, Identifiable {
     }
 }
 
+struct ShowEpisode: Codable, Hashable, Identifiable {
+    let episodeNumber: Int
+    let name: String
+    let airDate: Date?
+    let overview: String
+    let runtimeMinutes: Int?
+
+    var id: Int {
+        episodeNumber
+    }
+}
+
 enum ShowStatus: Codable, Hashable {
     case ended
     case returningSeries

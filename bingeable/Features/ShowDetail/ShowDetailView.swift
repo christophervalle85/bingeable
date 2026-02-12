@@ -20,7 +20,7 @@ struct ShowDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     heroSection
                     statsSection
-                    releasedSeasonsCard
+                    seasonEpisodesCard
                     providersCard
                     libraryCard
                     metadataCard
@@ -167,15 +167,15 @@ struct ShowDetailView: View {
         }
     }
 
-    private var releasedSeasonsCard: some View {
-        detailCard(title: "Released Seasons", systemImage: "film.stack.fill") {
+    private var seasonEpisodesCard: some View {
+        detailCard(title: "Episodes by Season", systemImage: "list.bullet.rectangle.portrait") {
             if releasedSeasons.isEmpty {
                 if let airedEpisodeCount = viewModel.show.airedEpisodeCount, airedEpisodeCount > 0 {
-                    Text("\(airedEpisodeCount) episodes are currently released.")
+                    Text("\(airedEpisodeCount) episodes are currently released, but season-level episode data is unavailable.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Season release data is not available yet.")
+                    Text("Season and episode data is not available yet.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -187,19 +187,53 @@ struct ShowDetailView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                    ForEach(releasedSeasons) { season in
-                        HStack(alignment: .top, spacing: 10) {
+                    Picker("Select Season", selection: seasonSelectionBinding) {
+                        ForEach(releasedSeasons) { season in
                             Text(seasonLabel(for: season))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-
-                            Spacer(minLength: 8)
-
-                            Text(seasonMetadata(for: season))
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .tag(season.seasonNumber)
                         }
-                        .padding(.vertical, 4)
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .controlSize(.regular)
+                    .font(.subheadline.weight(.semibold))
+                    .tint(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
+                    }
+                    .frame(maxWidth: 240, alignment: .leading)
+                    .accessibilityLabel("Season selector")
+
+                    if let selectedSeason {
+                        Text("\(seasonLabel(for: selectedSeason)) • \(seasonMetadata(for: selectedSeason))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if viewModel.isLoadingSeasonEpisodes {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let errorMessage = viewModel.seasonEpisodesErrorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    } else if viewModel.seasonEpisodes.isEmpty {
+                        Text("No episode data available for this season.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 9) {
+                            ForEach(viewModel.seasonEpisodes) { episode in
+                                episodeRow(episode)
+                            }
+                        }
                     }
                 }
             }
@@ -305,6 +339,47 @@ struct ShowDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func episodeRow(_ episode: ShowEpisode) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("E\(episode.episodeNumber)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+
+                Text(episode.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                if let airDate = episode.airDate {
+                    Text(DateParsing.mediumDateFormatter.string(from: airDate))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !episode.overview.isEmpty {
+                Text(episode.overview)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+
+            if let runtimeMinutes = episode.runtimeMinutes, runtimeMinutes > 0 {
+                Text("\(runtimeMinutes) min")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 
     private func providerTile(_ provider: WatchProvider) -> some View {
@@ -460,6 +535,32 @@ struct ShowDetailView: View {
         releasedSeasons.reduce(0) { partialResult, season in
             partialResult + (season.episodeCount ?? 0)
         }
+    }
+
+    private var selectedSeason: ShowSeason? {
+        guard !releasedSeasons.isEmpty else {
+            return nil
+        }
+
+        if let selectedSeasonNumber = viewModel.selectedSeasonNumber,
+           let exact = releasedSeasons.first(where: { $0.seasonNumber == selectedSeasonNumber }) {
+            return exact
+        }
+
+        return releasedSeasons.first
+    }
+
+    private var seasonSelectionBinding: Binding<Int> {
+        Binding(
+            get: {
+                selectedSeason?.seasonNumber ?? releasedSeasons.first?.seasonNumber ?? 1
+            },
+            set: { newValue in
+                Task {
+                    await viewModel.selectSeason(newValue, using: appContainer.showRepository)
+                }
+            }
+        )
     }
 
     private func seasonLabel(for season: ShowSeason) -> String {

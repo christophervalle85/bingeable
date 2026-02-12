@@ -64,6 +64,10 @@ actor TMDBClient {
         try await request(path: "/tv/\(id)/watch/providers")
     }
 
+    func seasonDetail(showID: Int, seasonNumber: Int) async throws -> TMDBSeasonDetailDTO {
+        try await request(path: "/tv/\(showID)/season/\(seasonNumber)")
+    }
+
     func clearURLCache() {
         session.configuration.urlCache?.removeAllCachedResponses()
     }

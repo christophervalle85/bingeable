@@ -6,7 +6,14 @@ protocol ShowRepository: Sendable {
     func searchShows(query: String) async throws -> [Show]
     func showDetail(showID: Int) async throws -> Show
     func watchProviders(showID: Int) async throws -> [WatchProvider]
+    func seasonEpisodes(showID: Int, seasonNumber: Int) async throws -> [ShowEpisode]
     func clearCache() async
+}
+
+extension ShowRepository {
+    func seasonEpisodes(showID _: Int, seasonNumber _: Int) async throws -> [ShowEpisode] {
+        []
+    }
 }
 
 actor TMDBShowRepository: ShowRepository {
@@ -20,6 +27,11 @@ actor TMDBShowRepository: ShowRepository {
         let timestamp: Date
     }
 
+    private struct SeasonKey: Hashable {
+        let showID: Int
+        let seasonNumber: Int
+    }
+
     private let client: TMDBClient
     private let detailCache: ShowDetailCache
     private let regionCode: String
@@ -28,6 +40,7 @@ actor TMDBShowRepository: ShowRepository {
     private var listCache: [ListKind: ListCacheEntry] = [:]
     private var detailTasks: [Int: Task<Show, Error>] = [:]
     private var providerTasks: [Int: Task<[WatchProvider], Error>] = [:]
+    private var seasonEpisodeTasks: [SeasonKey: Task<[ShowEpisode], Error>] = [:]
 
     init(
         client: TMDBClient,
@@ -131,10 +144,35 @@ actor TMDBShowRepository: ShowRepository {
         return try await task.value
     }
 
+    func seasonEpisodes(showID: Int, seasonNumber: Int) async throws -> [ShowEpisode] {
+        guard seasonNumber > 0 else {
+            return []
+        }
+
+        let key = SeasonKey(showID: showID, seasonNumber: seasonNumber)
+        if let task = seasonEpisodeTasks[key] {
+            return try await task.value
+        }
+
+        let task = Task<[ShowEpisode], Error> {
+            do {
+                let response = try await client.seasonDetail(showID: showID, seasonNumber: seasonNumber)
+                return Self.mapSeasonEpisodes(response.episodes)
+            } catch TMDBError.missingAPIKey {
+                return ShowFixtures.seasonEpisodes[showID]?[seasonNumber] ?? []
+            }
+        }
+
+        seasonEpisodeTasks[key] = task
+        defer { seasonEpisodeTasks[key] = nil }
+        return try await task.value
+    }
+
     func clearCache() async {
         listCache.removeAll()
         detailTasks.removeAll()
         providerTasks.removeAll()
+        seasonEpisodeTasks.removeAll()
         await client.clearURLCache()
         await detailCache.clear()
     }
@@ -203,6 +241,29 @@ actor TMDBShowRepository: ShowRepository {
             seasons: seasons
         )
     }
+
+    nonisolated private static func mapSeasonEpisodes(_ episodes: [TMDBSeasonEpisodeDTO]) -> [ShowEpisode] {
+        episodes
+            .compactMap { dto in
+                guard let episodeNumber = dto.episodeNumber, episodeNumber > 0 else {
+                    return nil
+                }
+
+                let trimmedName = dto.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let normalizedName = trimmedName.isEmpty ? "Episode \(episodeNumber)" : trimmedName
+
+                return ShowEpisode(
+                    episodeNumber: episodeNumber,
+                    name: normalizedName,
+                    airDate: DateParsing.parseTMDBDate(dto.airDate),
+                    overview: dto.overview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                    runtimeMinutes: dto.runtime
+                )
+            }
+            .sorted { lhs, rhs in
+                lhs.episodeNumber < rhs.episodeNumber
+            }
+    }
 }
 
 private enum ShowFixtures {
@@ -267,5 +328,75 @@ private enum ShowFixtures {
         WatchProvider(id: 8, name: "Netflix", logoPath: nil),
         WatchProvider(id: 337, name: "Disney Plus", logoPath: nil),
         WatchProvider(id: 384, name: "HBO Max", logoPath: nil)
+    ]
+
+    nonisolated static let seasonEpisodes: [Int: [Int: [ShowEpisode]]] = [
+        1396: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Pilot",
+                    airDate: DateParsing.parseTMDBDate("2008-01-20"),
+                    overview: "Walter White begins a dangerous new path after a life-changing diagnosis.",
+                    runtimeMinutes: 58
+                ),
+                ShowEpisode(
+                    episodeNumber: 2,
+                    name: "Cat's in the Bag...",
+                    airDate: DateParsing.parseTMDBDate("2008-01-27"),
+                    overview: "Walt and Jesse deal with the consequences of their first cook.",
+                    runtimeMinutes: 48
+                )
+            ],
+            2: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Seven Thirty-Seven",
+                    airDate: DateParsing.parseTMDBDate("2009-03-08"),
+                    overview: "Tuco escalates pressure on Walt and Jesse after their encounter.",
+                    runtimeMinutes: 47
+                )
+            ]
+        ],
+        94605: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Welcome to the Playground",
+                    airDate: DateParsing.parseTMDBDate("2021-11-06"),
+                    overview: "In Piltover and Zaun, simmering tensions push sisters onto separate paths.",
+                    runtimeMinutes: 41
+                )
+            ],
+            2: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "Heavy Is the Crown",
+                    airDate: DateParsing.parseTMDBDate("2024-11-09"),
+                    overview: "New alliances and old wounds collide as conflict expands.",
+                    runtimeMinutes: 44
+                )
+            ]
+        ],
+        94997: [
+            1: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "The Heirs of the Dragon",
+                    airDate: DateParsing.parseTMDBDate("2022-08-21"),
+                    overview: "The succession question reshapes alliances in King Viserys' court.",
+                    runtimeMinutes: 66
+                )
+            ],
+            2: [
+                ShowEpisode(
+                    episodeNumber: 1,
+                    name: "A Son for a Son",
+                    airDate: DateParsing.parseTMDBDate("2024-06-16"),
+                    overview: "The houses prepare for retaliation as open war approaches.",
+                    runtimeMinutes: 64
+                )
+            ]
+        ]
     ]
 }
