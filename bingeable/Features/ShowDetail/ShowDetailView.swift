@@ -358,8 +358,8 @@ struct ShowDetailView: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemBackground))
@@ -370,7 +370,7 @@ struct ShowDetailView: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(minWidth: 170, maxWidth: 240, alignment: .leading)
+        .frame(minWidth: 130, maxWidth: 170, alignment: .leading)
         .accessibilityLabel("Season selector")
     }
 
