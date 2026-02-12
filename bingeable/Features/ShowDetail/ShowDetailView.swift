@@ -166,27 +166,7 @@ struct ShowDetailView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                    Picker("Select Season", selection: seasonSelectionBinding) {
-                        ForEach(releasedSeasons) { season in
-                            Text(seasonLabel(for: season))
-                                .tag(season.seasonNumber)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .font(.subheadline.weight(.medium))
-                    .tint(.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.14 : 0.05), radius: 6, x: 0, y: 2)
-                    .frame(minWidth: 160, maxWidth: 220, alignment: .leading)
-                    .accessibilityLabel("Season selector")
+                    seasonDropdownButton
 
                     if let selectedSeason {
                         Text("\(seasonLabel(for: selectedSeason)) • \(seasonMetadata(for: selectedSeason))")
@@ -273,10 +253,14 @@ struct ShowDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Available in your region")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
                         ForEach(providers) { provider in
-                            providerTile(provider)
+                            providerRow(provider)
                         }
                     }
                 }
@@ -346,42 +330,113 @@ struct ShowDetailView: View {
         )
     }
 
-    private func providerTile(_ provider: WatchProvider) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.42 : 0.09))
-
-                if let logoURL = providerLogoURL(path: provider.logoPath) {
-                    AsyncImage(url: logoURL) { phase in
-                        switch phase {
-                        case let .success(image):
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .padding(8)
-                        case .empty, .failure:
-                            fallbackProviderIcon
-                        @unknown default:
-                            fallbackProviderIcon
-                        }
+    private var seasonDropdownButton: some View {
+        Menu {
+            ForEach(releasedSeasons) { season in
+                Button {
+                    Task {
+                        await viewModel.selectSeason(season.seasonNumber, using: appContainer.showRepository)
                     }
-                } else {
-                    fallbackProviderIcon
+                } label: {
+                    if season.seasonNumber == selectedSeason?.seasonNumber {
+                        Label(seasonLabel(for: season), systemImage: "checkmark")
+                    } else {
+                        Text(seasonLabel(for: season))
+                    }
                 }
             }
-            .frame(width: 104, height: 56)
+        } label: {
+            HStack(spacing: 10) {
+                Text(selectedSeason.map(seasonLabel(for:)) ?? "Season 1")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
 
-            Text(provider.name)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .foregroundStyle(.primary)
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+            }
         }
-        .padding(8)
+        .buttonStyle(.plain)
+        .frame(minWidth: 170, maxWidth: 240, alignment: .leading)
+        .accessibilityLabel("Season selector")
+    }
+
+    private var providerColumns: [GridItem] {
+        [
+            GridItem(.flexible(minimum: 130), spacing: 10),
+            GridItem(.flexible(minimum: 130), spacing: 10)
+        ]
+    }
+
+    private func providerRow(_ provider: WatchProvider) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            providerLogoBadge(provider)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(provider.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+
+                Text("Streaming")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        }
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.thinMaterial)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+        }
+    }
+
+    private func providerLogoBadge(_ provider: WatchProvider) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(colorScheme == .dark ? 0.36 : 0.08))
+
+            if let logoURL = providerLogoURL(path: provider.logoPath) {
+                AsyncImage(url: logoURL) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .padding(6)
+                    case .empty, .failure:
+                        fallbackProviderIcon
+                    @unknown default:
+                        fallbackProviderIcon
+                    }
+                }
+            } else {
+                fallbackProviderIcon
+            }
+        }
+        .frame(width: 42, height: 42)
     }
 
     private var fallbackProviderIcon: some View {
@@ -512,19 +567,6 @@ struct ShowDetailView: View {
         }
 
         return releasedSeasons.first
-    }
-
-    private var seasonSelectionBinding: Binding<Int> {
-        Binding(
-            get: {
-                selectedSeason?.seasonNumber ?? releasedSeasons.first?.seasonNumber ?? 1
-            },
-            set: { newValue in
-                Task {
-                    await viewModel.selectSeason(newValue, using: appContainer.showRepository)
-                }
-            }
-        )
     }
 
     private func seasonLabel(for season: ShowSeason) -> String {
