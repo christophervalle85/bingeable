@@ -23,7 +23,6 @@ struct ShowDetailView: View {
                     seasonEpisodesCard
                     providersCard
                     libraryCard
-                    metadataCard
 
                     if let errorMessage = viewModel.errorMessage {
                         errorBanner(message: errorMessage)
@@ -147,26 +146,6 @@ struct ShowDetailView: View {
         }
     }
 
-    private var metadataCard: some View {
-        detailCard(title: "Details", systemImage: "info.circle") {
-            VStack(spacing: 11) {
-                metadataRow(title: "Status", value: viewModel.show.status?.displayName ?? "Unknown")
-
-                if let nextEpisodeAirDate = viewModel.show.nextEpisodeAirDate {
-                    metadataRow(title: "Next episode", value: DateParsing.mediumDateFormatter.string(from: nextEpisodeAirDate))
-                }
-
-                if let lastAirDate = viewModel.show.lastAirDate {
-                    metadataRow(title: "Last aired", value: DateParsing.mediumDateFormatter.string(from: lastAirDate))
-                }
-
-                if let airedEpisodeCount = viewModel.show.airedEpisodeCount {
-                    metadataRow(title: "Episodes", value: String(airedEpisodeCount))
-                }
-            }
-        }
-    }
-
     private var seasonEpisodesCard: some View {
         detailCard(title: "Episodes by Season", systemImage: "list.bullet.rectangle.portrait") {
             if releasedSeasons.isEmpty {
@@ -195,20 +174,18 @@ struct ShowDetailView: View {
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
-                    .controlSize(.regular)
-                    .font(.subheadline.weight(.semibold))
+                    .controlSize(.small)
+                    .font(.subheadline.weight(.medium))
                     .tint(.primary)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemBackground))
-                    )
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
                     }
-                    .frame(maxWidth: 240, alignment: .leading)
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.14 : 0.05), radius: 6, x: 0, y: 2)
+                    .frame(minWidth: 160, maxWidth: 220, alignment: .leading)
                     .accessibilityLabel("Season selector")
 
                     if let selectedSeason {
@@ -326,19 +303,6 @@ struct ShowDetailView: View {
         }
         .padding(14)
         .background(detailCardBackground)
-    }
-
-    private func metadataRow(title: String, value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-
-            Spacer()
-
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
     }
 
     private func episodeRow(_ episode: ShowEpisode) -> some View {
