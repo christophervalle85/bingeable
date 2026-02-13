@@ -3,44 +3,12 @@ import Combine
 
 @MainActor
 final class SearchViewModel: ObservableObject {
-    enum SearchSortOption: String, CaseIterable, Identifiable {
-        case relevance
-        case rating
-        case alphabetical
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .relevance:
-                return "Relevance"
-            case .rating:
-                return "Rating"
-            case .alphabetical:
-                return "A-Z"
-            }
-        }
-    }
-
-    static let allGenresLabel = "All Genres"
-
     @Published var query = ""
     @Published private(set) var displayedResults: [Show] = []
     @Published private(set) var totalResultCount = 0
     @Published var isSearching = false
     @Published var errorMessage: String?
     @Published private(set) var recentShows: [Show] = []
-    @Published private(set) var availableGenres: [String] = [SearchViewModel.allGenresLabel]
-    @Published var selectedGenre = SearchViewModel.allGenresLabel {
-        didSet {
-            applyTransforms()
-        }
-    }
-    @Published var sortOption: SearchSortOption = .relevance {
-        didSet {
-            applyTransforms()
-        }
-    }
 
     private let minimumQueryLength: Int
     private let debounceNanoseconds: UInt64
@@ -80,10 +48,6 @@ final class SearchViewModel: ObservableObject {
 
     var shouldShowInitialPrompt: Bool {
         isQueryEmpty && recentShows.isEmpty
-    }
-
-    var shouldShowFilters: Bool {
-        !rawResults.isEmpty
     }
 
     var shouldShowNoResultsState: Bool {
@@ -183,26 +147,7 @@ final class SearchViewModel: ObservableObject {
     private func applySearchResults(_ results: [Show]) {
         rawResults = results
         totalResultCount = results.count
-        refreshAvailableGenres()
         applyTransforms()
-    }
-
-    private func refreshAvailableGenres() {
-        let names = Set(
-            rawResults
-                .flatMap(\.genres)
-                .map(\.name)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-        )
-
-        availableGenres = [Self.allGenresLabel] + names.sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
-
-        if !availableGenres.contains(selectedGenre) {
-            selectedGenre = Self.allGenresLabel
-        }
     }
 
     private func applyTransforms() {
@@ -210,41 +155,7 @@ final class SearchViewModel: ObservableObject {
 
         if isSingleCharacterQuery {
             transformed = filteredSingleCharacterResults(from: transformed)
-        }
-
-        if selectedGenre != Self.allGenresLabel {
-            transformed = transformed.filter { show in
-                show.genres.contains(where: { genre in
-                    genre.name.localizedCaseInsensitiveCompare(selectedGenre) == .orderedSame
-                })
-            }
-        }
-
-        switch sortOption {
-        case .relevance:
-            if isSingleCharacterQuery {
-                transformed.sort(by: singleCharacterRelevanceComparator)
-            }
-        case .rating:
-            transformed.sort { lhs, rhs in
-                let lhsRating = lhs.voteAverage ?? 0
-                let rhsRating = rhs.voteAverage ?? 0
-                if lhsRating != rhsRating {
-                    return lhsRating > rhsRating
-                }
-
-                let lhsVotes = lhs.voteCount ?? 0
-                let rhsVotes = rhs.voteCount ?? 0
-                if lhsVotes != rhsVotes {
-                    return lhsVotes > rhsVotes
-                }
-
-                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-        case .alphabetical:
-            transformed.sort {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
+            transformed.sort(by: singleCharacterRelevanceComparator)
         }
 
         displayedResults = transformed

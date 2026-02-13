@@ -80,9 +80,9 @@ struct SearchViewModelTests {
         #expect(viewModel.displayedResults.map(\.name) == ["Arcane"])
     }
 
-    @Test("Search sorting supports relevance rating and alphabetical")
+    @Test("Multi-character queries preserve repository relevance order")
     @MainActor
-    func sortingModesApplyCorrectly() async throws {
+    func multiCharacterQueriesPreserveRepositoryOrder() async throws {
         let alpha = makeShow(id: 1, name: "Alpha", rating: 8.1, votes: 100, genres: [Genre(id: 18, name: "Drama")])
         let beta = makeShow(id: 2, name: "Beta", rating: 9.0, votes: 50, genres: [Genre(id: 35, name: "Comedy")])
         let gamma = makeShow(id: 3, name: "Gamma", rating: 9.0, votes: 400, genres: [Genre(id: 16, name: "Animation")])
@@ -100,12 +100,6 @@ struct SearchViewModelTests {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         #expect(viewModel.displayedResults.map(\.name) == ["Beta", "Alpha", "Gamma"])
-
-        viewModel.sortOption = .rating
-        #expect(viewModel.displayedResults.map(\.name) == ["Gamma", "Beta", "Alpha"])
-
-        viewModel.sortOption = .alphabetical
-        #expect(viewModel.displayedResults.map(\.name) == ["Alpha", "Beta", "Gamma"])
     }
 
     @Test("Single-character relevance prefers popular title-prefix matches")
@@ -130,34 +124,6 @@ struct SearchViewModelTests {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         #expect(viewModel.displayedResults.map(\.name) == ["Breaking Bad", "Better Call Saul", "Beta Test", "The Boys"])
-    }
-
-    @Test("Genre filter options are derived from returned results")
-    @MainActor
-    func genreFilteringUsesDetectedGenres() async throws {
-        let repository = MockSearchRepository(
-            resultsByQuery: [
-                "tv": [
-                    makeShow(id: 1, name: "Drama Show", genres: [Genre(id: 18, name: "Drama")]),
-                    makeShow(id: 2, name: "Comedy Show", genres: [Genre(id: 35, name: "Comedy")]),
-                    makeShow(id: 3, name: "Hybrid Show", genres: [Genre(id: 18, name: "Drama"), Genre(id: 35, name: "Comedy")])
-                ]
-            ]
-        )
-        let viewModel = SearchViewModel(debounceMilliseconds: 1)
-        let recentStore = MockRecentSearchStore()
-
-        viewModel.query = "tv"
-        viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
-        try await Task.sleep(nanoseconds: 80_000_000)
-
-        #expect(viewModel.availableGenres == ["All Genres", "Comedy", "Drama"])
-
-        viewModel.selectedGenre = "Drama"
-        #expect(viewModel.displayedResults.map(\.name) == ["Drama Show", "Hybrid Show"])
-
-        viewModel.selectedGenre = "All Genres"
-        #expect(viewModel.displayedResults.count == 3)
     }
 
     @Test("Recently viewed shows are deduped capped and clearable")

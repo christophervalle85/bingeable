@@ -18,10 +18,6 @@ struct SearchView: View {
                         errorBanner(message: errorMessage)
                     }
 
-                    if viewModel.shouldShowFilters {
-                        controlsRow
-                    }
-
                     if viewModel.shouldShowInitialPrompt {
                         introCard
                     }
@@ -61,53 +57,6 @@ struct SearchView: View {
         }
     }
 
-    private var controlsRow: some View {
-        HStack(spacing: 10) {
-            Menu {
-                ForEach(SearchViewModel.SearchSortOption.allCases) { option in
-                    Button {
-                        viewModel.sortOption = option
-                    } label: {
-                        if option == viewModel.sortOption {
-                            Label(option.title, systemImage: "checkmark")
-                        } else {
-                            Text(option.title)
-                        }
-                    }
-                }
-            } label: {
-                menuPill(
-                    title: "Sort: \(viewModel.sortOption.title)",
-                    systemImage: "arrow.up.arrow.down"
-                )
-            }
-            .accessibilityIdentifier("search-sort-menu")
-
-            Menu {
-                ForEach(viewModel.availableGenres, id: \.self) { genre in
-                    Button {
-                        viewModel.selectedGenre = genre
-                    } label: {
-                        if genre == viewModel.selectedGenre {
-                            Label(genre, systemImage: "checkmark")
-                        } else {
-                            Text(genre)
-                        }
-                    }
-                }
-            } label: {
-                menuPill(
-                    title: viewModel.selectedGenre,
-                    systemImage: "line.3.horizontal.decrease.circle"
-                )
-            }
-            .accessibilityIdentifier("search-genre-menu")
-
-            Spacer(minLength: 0)
-        }
-        .accessibilityIdentifier("search-filter-bar")
-    }
-
     private var introCard: some View {
         infoCard(
             title: "Find your next show",
@@ -120,7 +69,7 @@ struct SearchView: View {
     private var noResultsCard: some View {
         infoCard(
             title: "No results found",
-            subtitle: "Try another title or clear your current filters.",
+            subtitle: "Try another title or refine your keywords.",
             systemImage: "sparkle.magnifyingglass"
         )
         .accessibilityIdentifier("search-empty-no-results")
@@ -290,29 +239,6 @@ struct SearchView: View {
                 .stroke(Color.red.opacity(0.2), lineWidth: 1)
         }
         .accessibilityIdentifier("search-error-banner")
-    }
-
-    private func menuPill(title: String, systemImage: String) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.semibold))
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-            Image(systemName: "chevron.down")
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.62))
-        )
-        .overlay {
-            Capsule(style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-        }
     }
 
     private var cardBackground: some View {

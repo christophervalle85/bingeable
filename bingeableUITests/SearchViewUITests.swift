@@ -34,7 +34,7 @@ final class SearchViewUITests: XCTestCase {
     }
 
     @MainActor
-    func testSearchSortAndGenreMenusAreInteractive() throws {
+    func testSearchDoesNotShowFilterControls() throws {
         let app = launchAppAndContinueAsGuest()
         openSearchTab(app)
 
@@ -43,26 +43,13 @@ final class SearchViewUITests: XCTestCase {
         searchField.tap()
         searchField.typeText("arc")
 
-        guard app.otherElements["search-filter-bar"].waitForExistence(timeout: 8) else {
-            throw XCTSkip("Filter bar did not appear for the current search response.")
-        }
         guard firstSearchResult(in: app).waitForExistence(timeout: 8) else {
-            throw XCTSkip("No searchable results were returned for UI interaction checks.")
+            throw XCTSkip("No searchable results were returned for this scenario.")
         }
 
-        let sortMenu = app.buttons["search-sort-menu"]
-        XCTAssertTrue(sortMenu.exists)
-        sortMenu.tap()
-        XCTAssertTrue(app.buttons["Rating"].waitForExistence(timeout: 3))
-        app.buttons["Rating"].tap()
-
-        let genreMenu = app.buttons["search-genre-menu"]
-        XCTAssertTrue(genreMenu.exists)
-        genreMenu.tap()
-        XCTAssertTrue(app.buttons["All Genres"].waitForExistence(timeout: 3))
-        app.buttons["All Genres"].tap()
-
-        XCTAssertTrue(firstSearchResult(in: app).waitForExistence(timeout: 5))
+        XCTAssertFalse(app.otherElements["search-filter-bar"].exists)
+        XCTAssertFalse(app.buttons["search-sort-menu"].exists)
+        XCTAssertFalse(app.buttons["search-genre-menu"].exists)
     }
 
     @MainActor
@@ -110,10 +97,6 @@ final class SearchViewUITests: XCTestCase {
         let tab = app.tabBars.buttons["Search"]
         XCTAssertTrue(tab.waitForExistence(timeout: 8))
         tab.tap()
-    }
-
-    private func anyElement(in app: XCUIApplication, identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
     }
 
     private func firstSearchResult(in app: XCUIApplication) -> XCUIElement {
