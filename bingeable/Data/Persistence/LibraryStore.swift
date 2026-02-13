@@ -4,7 +4,10 @@ import SwiftData
 
 @MainActor
 final class LibraryStore: ObservableObject {
+    static let guestScopeID = "guest"
+
     @Published private(set) var items: [TrackedShowEntity] = []
+    @Published private(set) var activeScopeID: String = guestScopeID
 
     private let context: ModelContext
 
@@ -13,11 +16,38 @@ final class LibraryStore: ObservableObject {
         refresh()
     }
 
+    func setActiveScope(_ scopeID: String) {
+        let normalized = Self.normalizeScopeID(scopeID)
+        guard normalized != activeScopeID else {
+            return
+        }
+
+        activeScopeID = normalized
+        refresh()
+    }
+
     func refresh() {
-        let descriptor = FetchDescriptor<TrackedShowEntity>(sortBy: [SortDescriptor(\TrackedShowEntity.updatedAt, order: .reverse)])
+        let scopeID = activeScopeID
+        let descriptor: FetchDescriptor<TrackedShowEntity>
+        if scopeID == Self.guestScopeID {
+            descriptor = FetchDescriptor<TrackedShowEntity>(
+                predicate: #Predicate<TrackedShowEntity> { entity in
+                    entity.scopeID == scopeID || entity.scopeID == ""
+                },
+                sortBy: [SortDescriptor(\TrackedShowEntity.updatedAt, order: .reverse)]
+            )
+        } else {
+            descriptor = FetchDescriptor<TrackedShowEntity>(
+                predicate: #Predicate<TrackedShowEntity> { entity in
+                    entity.scopeID == scopeID
+                },
+                sortBy: [SortDescriptor(\TrackedShowEntity.updatedAt, order: .reverse)]
+            )
+        }
 
         do {
             items = try context.fetch(descriptor)
+            migrateLoadedItemsIfNeeded()
         } catch {
             NSLog("Unable to fetch tracked shows: \(error.localizedDescription)")
             items = []
@@ -39,7 +69,11 @@ final class LibraryStore: ObservableObject {
     }
 
     func upsert(show: Show, shelf: LibraryShelf) {
+        let scopeID = activeScopeID
+
         if let existing = items.first(where: { $0.showID == show.id }) {
+            existing.scopeID = scopeID
+            existing.scopedShowID = TrackedShowEntity.makeScopedShowID(scopeID: scopeID, showID: show.id)
             existing.shelf = shelf
             existing.name = show.name
             existing.posterPath = show.posterPath
@@ -48,6 +82,7 @@ final class LibraryStore: ObservableObject {
         } else {
             let entity = TrackedShowEntity(
                 showID: show.id,
+                scopeID: scopeID,
                 shelf: shelf,
                 name: show.name,
                 posterPath: show.posterPath,
@@ -79,7 +114,10 @@ final class LibraryStore: ObservableObject {
     }
 
     func clearAll() {
-        for item in items {
+        let descriptor = FetchDescriptor<TrackedShowEntity>()
+        let allItems = (try? context.fetch(descriptor)) ?? []
+
+        for item in allItems {
             context.delete(item)
         }
 
@@ -106,5 +144,42 @@ final class LibraryStore: ObservableObject {
         }
 
         refresh()
+    }
+
+    private func migrateLoadedItemsIfNeeded() {
+        var didMutate = false
+
+        for item in items {
+            let normalizedScopeID = Self.normalizeScopeID(item.scopeID)
+            if normalizedScopeID != item.scopeID {
+                item.scopeID = normalizedScopeID
+                didMutate = true
+            }
+
+            let expectedScopedID = TrackedShowEntity.makeScopedShowID(scopeID: normalizedScopeID, showID: item.showID)
+            if item.scopedShowID != expectedScopedID {
+                item.scopedShowID = expectedScopedID
+                didMutate = true
+            }
+        }
+
+        guard didMutate else {
+            return
+        }
+
+        do {
+            try context.save()
+            items.sort { $0.updatedAt > $1.updatedAt }
+        } catch {
+            NSLog("Unable to migrate scoped library items: \(error.localizedDescription)")
+        }
+    }
+
+    private static func normalizeScopeID(_ scopeID: String) -> String {
+        let trimmed = scopeID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "signed_out" {
+            return guestScopeID
+        }
+        return trimmed
     }
 }

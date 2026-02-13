@@ -20,6 +20,8 @@ struct bingeableApp: App {
         let profileSettingsStore = ProfileSettingsStore()
         let environment = ProcessInfo.processInfo.environment
 
+        libraryStore.setActiveScope(appContainer.sessionManager.libraryScopeIdentifier)
+
         if environment["UI_TEST_RESET_LIBRARY"] == "1" {
             libraryStore.clearAll()
         }

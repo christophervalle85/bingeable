@@ -45,6 +45,15 @@ final class SessionManager: ObservableObject {
         }
     }
 
+    var libraryScopeIdentifier: String {
+        switch authState {
+        case let .signedIn(email):
+            return email
+        case .guest, .undetermined:
+            return "guest"
+        }
+    }
+
     private let defaults: UserDefaults
 
     private enum Keys {

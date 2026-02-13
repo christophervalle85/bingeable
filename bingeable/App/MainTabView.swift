@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject private var sessionManager: SessionManager
+    @EnvironmentObject private var libraryStore: LibraryStore
+
     var body: some View {
         TabView {
             NavigationStack {
@@ -30,6 +33,12 @@ struct MainTabView: View {
             .tabItem {
                 Label("Profile", systemImage: "person.crop.circle")
             }
+        }
+        .onAppear {
+            libraryStore.setActiveScope(sessionManager.libraryScopeIdentifier)
+        }
+        .onChange(of: sessionManager.authState) { _, _ in
+            libraryStore.setActiveScope(sessionManager.libraryScopeIdentifier)
         }
     }
 }

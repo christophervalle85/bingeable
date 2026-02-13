@@ -140,6 +140,34 @@ struct LibraryViewModelTests {
         #expect(viewModel.summary.totalCount == 1)
     }
 
+    @Test("Library store isolates records by active auth scope")
+    @MainActor
+    func libraryStoreIsolatedByScope() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: TrackedShowEntity.self, configurations: configuration)
+        let store = LibraryStore(context: container.mainContext)
+
+        let show = makeDetailShow(id: 42, name: "Scoped Show", status: .ended, nextEpisodeAirDate: nil, airedCount: 10)
+
+        store.setActiveScope("guest")
+        store.upsert(show: show, shelf: .waiting)
+        #expect(store.shelf(for: 42) == .waiting)
+
+        store.setActiveScope("user@example.com")
+        #expect(store.shelf(for: 42) == nil)
+
+        store.upsert(show: show, shelf: .watching)
+        #expect(store.shelf(for: 42) == .watching)
+
+        store.setActiveScope("guest")
+        #expect(store.shelf(for: 42) == .waiting)
+        #expect(store.allTrackedShows().count == 1)
+
+        store.setActiveScope("user@example.com")
+        #expect(store.shelf(for: 42) == .watching)
+        #expect(store.allTrackedShows().count == 1)
+    }
+
     private func makeTrackedShow(
         id: Int,
         name: String,
