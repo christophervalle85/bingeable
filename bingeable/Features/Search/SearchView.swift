@@ -26,10 +26,6 @@ struct SearchView: View {
                         introCard
                     }
 
-                    if viewModel.shouldShowMinimumQueryHint {
-                        minimumQueryCard
-                    }
-
                     if viewModel.shouldShowRecents {
                         recentsCard
                     }
@@ -119,15 +115,6 @@ struct SearchView: View {
             systemImage: "magnifyingglass"
         )
         .accessibilityIdentifier("search-empty-initial")
-    }
-
-    private var minimumQueryCard: some View {
-        infoCard(
-            title: "Keep typing",
-            subtitle: "Enter at least 2 characters to start searching.",
-            systemImage: "text.cursor"
-        )
-        .accessibilityIdentifier("search-empty-min-query")
     }
 
     private var noResultsCard: some View {

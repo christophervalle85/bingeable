@@ -30,22 +30,25 @@ struct SearchViewModelTests {
         #expect(viewModel.displayedResults.map(\.name) == ["Breaking Bad"])
     }
 
-    @Test("Search ignores queries shorter than minimum length")
+    @Test("Single-character queries trigger suggestions")
     @MainActor
-    func shortQueriesDoNotTriggerSearch() async throws {
-        let repository = MockSearchRepository(resultsByQuery: [:])
+    func singleCharacterQueriesTriggerSearch() async throws {
+        let repository = MockSearchRepository(
+            resultsByQuery: [
+                "b": [makeShow(id: 1, name: "Breaking Bad", genres: [Genre(id: 18, name: "Drama")])]
+            ]
+        )
         let viewModel = SearchViewModel(debounceMilliseconds: 30)
         let recentStore = MockRecentSearchStore()
 
-        viewModel.query = "a"
+        viewModel.query = "b"
         viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
 
         try await Task.sleep(nanoseconds: 120_000_000)
 
         let searchedQueries = await repository.searchedQueries()
-        #expect(searchedQueries.isEmpty)
-        #expect(viewModel.displayedResults.isEmpty)
-        #expect(viewModel.shouldShowMinimumQueryHint)
+        #expect(searchedQueries == ["b"])
+        #expect(viewModel.displayedResults.map(\.name) == ["Breaking Bad"])
     }
 
     @Test("Latest completed search wins when earlier request is slower")
@@ -103,6 +106,30 @@ struct SearchViewModelTests {
 
         viewModel.sortOption = .alphabetical
         #expect(viewModel.displayedResults.map(\.name) == ["Alpha", "Beta", "Gamma"])
+    }
+
+    @Test("Single-character relevance prefers popular title-prefix matches")
+    @MainActor
+    func singleCharacterRelevanceRankingUsesPrefixAndPopularity() async throws {
+        let breaking = makeShow(id: 1, name: "Breaking Bad", rating: 9.4, votes: 14_000, genres: [Genre(id: 18, name: "Drama")])
+        let better = makeShow(id: 2, name: "Better Call Saul", rating: 9.0, votes: 8_000, genres: [Genre(id: 18, name: "Drama")])
+        let beta = makeShow(id: 3, name: "Beta Test", rating: 7.3, votes: 600, genres: [Genre(id: 18, name: "Drama")])
+        let boys = makeShow(id: 4, name: "The Boys", rating: 8.7, votes: 5_000, genres: [Genre(id: 10765, name: "Sci-Fi & Fantasy")])
+        let cobra = makeShow(id: 5, name: "Cobra Kai", rating: 8.1, votes: 20_000, genres: [Genre(id: 18, name: "Drama")])
+
+        let repository = MockSearchRepository(
+            resultsByQuery: [
+                "b": [cobra, better, boys, beta, breaking]
+            ]
+        )
+        let viewModel = SearchViewModel(debounceMilliseconds: 1)
+        let recentStore = MockRecentSearchStore()
+
+        viewModel.query = "b"
+        viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        #expect(viewModel.displayedResults.map(\.name) == ["Breaking Bad", "Better Call Saul", "Beta Test", "The Boys"])
     }
 
     @Test("Genre filter options are derived from returned results")

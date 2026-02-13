@@ -51,7 +51,7 @@ final class SearchViewModel: ObservableObject {
     private var searchRequestSequence = 0
 
     init(
-        minimumQueryLength: Int = 2,
+        minimumQueryLength: Int = 1,
         debounceMilliseconds: UInt64 = 350,
         sleeper: @escaping @Sendable (UInt64) async throws -> Void = { nanoseconds in
             try await Task.sleep(nanoseconds: nanoseconds)
@@ -74,21 +74,12 @@ final class SearchViewModel: ObservableObject {
         trimmedQuery.isEmpty
     }
 
-    var isBelowMinimumQueryLength: Bool {
-        let length = trimmedQuery.count
-        return length > 0 && length < minimumQueryLength
-    }
-
     var shouldShowRecents: Bool {
-        (isQueryEmpty || isBelowMinimumQueryLength) && !recentShows.isEmpty
+        isQueryEmpty && !recentShows.isEmpty
     }
 
     var shouldShowInitialPrompt: Bool {
         isQueryEmpty && recentShows.isEmpty
-    }
-
-    var shouldShowMinimumQueryHint: Bool {
-        isBelowMinimumQueryLength
     }
 
     var shouldShowFilters: Bool {
@@ -96,7 +87,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     var shouldShowNoResultsState: Bool {
-        !isSearching && errorMessage == nil && !isQueryEmpty && !isBelowMinimumQueryLength && rawResults.isEmpty
+        !isSearching && errorMessage == nil && !isQueryEmpty && rawResults.isEmpty
     }
 
     func loadRecentShows(from store: any RecentSearchPersisting) {
@@ -217,6 +208,10 @@ final class SearchViewModel: ObservableObject {
     private func applyTransforms() {
         var transformed = rawResults
 
+        if isSingleCharacterQuery {
+            transformed = filteredSingleCharacterResults(from: transformed)
+        }
+
         if selectedGenre != Self.allGenresLabel {
             transformed = transformed.filter { show in
                 show.genres.contains(where: { genre in
@@ -227,7 +222,9 @@ final class SearchViewModel: ObservableObject {
 
         switch sortOption {
         case .relevance:
-            break
+            if isSingleCharacterQuery {
+                transformed.sort(by: singleCharacterRelevanceComparator)
+            }
         case .rating:
             transformed.sort { lhs, rhs in
                 let lhsRating = lhs.voteAverage ?? 0
@@ -255,5 +252,62 @@ final class SearchViewModel: ObservableObject {
 
     private func normalizeQuery(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedQueryForMatching: String {
+        trimmedQuery
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
+
+    private var isSingleCharacterQuery: Bool {
+        normalizedQueryForMatching.count == 1
+    }
+
+    private func filteredSingleCharacterResults(from shows: [Show]) -> [Show] {
+        let tokenPrefixMatches = shows.filter { singleCharacterPrefixRank(for: $0.name) < 2 }
+        return tokenPrefixMatches.isEmpty ? shows : tokenPrefixMatches
+    }
+
+    private func singleCharacterRelevanceComparator(lhs: Show, rhs: Show) -> Bool {
+        let lhsRank = singleCharacterPrefixRank(for: lhs.name)
+        let rhsRank = singleCharacterPrefixRank(for: rhs.name)
+        if lhsRank != rhsRank {
+            return lhsRank < rhsRank
+        }
+
+        let lhsVotes = lhs.voteCount ?? 0
+        let rhsVotes = rhs.voteCount ?? 0
+        if lhsVotes != rhsVotes {
+            return lhsVotes > rhsVotes
+        }
+
+        let lhsRating = lhs.voteAverage ?? 0
+        let rhsRating = rhs.voteAverage ?? 0
+        if lhsRating != rhsRating {
+            return lhsRating > rhsRating
+        }
+
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    private func singleCharacterPrefixRank(for name: String) -> Int {
+        let normalizedName = name
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+        let query = normalizedQueryForMatching
+
+        if normalizedName.hasPrefix(query) {
+            return 0
+        }
+
+        let tokenStarts = normalizedName
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .contains(where: { $0.hasPrefix(query) })
+        if tokenStarts {
+            return 1
+        }
+
+        return 2
     }
 }
