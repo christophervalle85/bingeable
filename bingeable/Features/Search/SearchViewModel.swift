@@ -29,7 +29,7 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var totalResultCount = 0
     @Published var isSearching = false
     @Published var errorMessage: String?
-    @Published private(set) var recentQueries: [String] = []
+    @Published private(set) var recentShows: [Show] = []
     @Published private(set) var availableGenres: [String] = [SearchViewModel.allGenresLabel]
     @Published var selectedGenre = SearchViewModel.allGenresLabel {
         didSet {
@@ -49,7 +49,6 @@ final class SearchViewModel: ObservableObject {
     private var rawResults: [Show] = []
     private var searchTask: Task<Void, Never>?
     private var searchRequestSequence = 0
-    private var suppressNextQueryChange = false
 
     init(
         minimumQueryLength: Int = 2,
@@ -81,11 +80,11 @@ final class SearchViewModel: ObservableObject {
     }
 
     var shouldShowRecents: Bool {
-        (isQueryEmpty || isBelowMinimumQueryLength) && !recentQueries.isEmpty
+        (isQueryEmpty || isBelowMinimumQueryLength) && !recentShows.isEmpty
     }
 
     var shouldShowInitialPrompt: Bool {
-        isQueryEmpty && recentQueries.isEmpty
+        isQueryEmpty && recentShows.isEmpty
     }
 
     var shouldShowMinimumQueryHint: Bool {
@@ -100,44 +99,25 @@ final class SearchViewModel: ObservableObject {
         !isSearching && errorMessage == nil && !isQueryEmpty && !isBelowMinimumQueryLength && rawResults.isEmpty
     }
 
-    func loadRecentQueries(from store: any RecentSearchPersisting) {
-        recentQueries = store.recentQueries()
+    func loadRecentShows(from store: any RecentSearchPersisting) {
+        recentShows = store.recentShows()
     }
 
-    func clearRecentQueries(using store: any RecentSearchPersisting) {
+    func clearRecentShows(using store: any RecentSearchPersisting) {
         store.clearAll()
-        loadRecentQueries(from: store)
+        loadRecentShows(from: store)
+    }
+
+    func recordViewedShow(_ show: Show, using store: any RecentSearchPersisting) {
+        store.record(show: show)
+        loadRecentShows(from: store)
     }
 
     func handleQueryChange(using repository: any ShowRepository, recentSearchStore: any RecentSearchPersisting) {
-        if suppressNextQueryChange {
-            suppressNextQueryChange = false
-            return
-        }
-
         scheduleSearch(
             using: repository,
             recentSearchStore: recentSearchStore,
             debounce: true
-        )
-    }
-
-    func selectRecentQuery(
-        _ recentQuery: String,
-        using repository: any ShowRepository,
-        recentSearchStore: any RecentSearchPersisting
-    ) {
-        let trimmed = normalizeQuery(recentQuery)
-        guard !trimmed.isEmpty else {
-            return
-        }
-
-        suppressNextQueryChange = true
-        query = trimmed
-        scheduleSearch(
-            using: repository,
-            recentSearchStore: recentSearchStore,
-            debounce: false
         )
     }
 
@@ -156,14 +136,14 @@ final class SearchViewModel: ObservableObject {
         guard !trimmed.isEmpty else {
             isSearching = false
             applySearchResults([])
-            loadRecentQueries(from: recentSearchStore)
+            loadRecentShows(from: recentSearchStore)
             return
         }
 
         guard trimmed.count >= minimumQueryLength else {
             isSearching = false
             applySearchResults([])
-            loadRecentQueries(from: recentSearchStore)
+            loadRecentShows(from: recentSearchStore)
             return
         }
 
@@ -189,8 +169,6 @@ final class SearchViewModel: ObservableObject {
                     self.errorMessage = nil
                     self.isSearching = false
                     self.applySearchResults(fetched)
-                    recentSearchStore.record(query: trimmed)
-                    self.loadRecentQueries(from: recentSearchStore)
                 }
             } catch is CancellationError {
                 await MainActor.run {

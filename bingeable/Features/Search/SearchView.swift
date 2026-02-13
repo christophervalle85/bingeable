@@ -55,7 +55,7 @@ struct SearchView: View {
         .navigationTitle("Search")
         .searchable(text: $viewModel.query, prompt: "Search shows")
         .task {
-            viewModel.loadRecentQueries(from: recentSearchStore)
+            viewModel.loadRecentShows(from: recentSearchStore)
         }
         .onChange(of: viewModel.query) { _, _ in
             viewModel.handleQueryChange(
@@ -157,13 +157,13 @@ struct SearchView: View {
     private var recentsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Recent Searches")
+                Text("Recently Viewed")
                     .font(.headline)
 
                 Spacer(minLength: 0)
 
                 Button("Clear All") {
-                    viewModel.clearRecentQueries(using: recentSearchStore)
+                    viewModel.clearRecentShows(using: recentSearchStore)
                 }
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.bordered)
@@ -171,36 +171,17 @@ struct SearchView: View {
                 .accessibilityIdentifier("search-recents-clear")
             }
 
-            ForEach(viewModel.recentQueries, id: \.self) { query in
-                Button {
-                    viewModel.selectRecentQuery(
-                        query,
-                        using: appContainer.showRepository,
-                        recentSearchStore: recentSearchStore
-                    )
+            ForEach(viewModel.recentShows) { show in
+                NavigationLink {
+                    ShowDetailView(seedShow: show)
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .foregroundStyle(.secondary)
-                        Text(query)
-                            .foregroundStyle(.primary)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        Image(systemName: "arrow.up.left")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.45))
-                    )
+                    recentShowRow(show)
                 }
+                .simultaneousGesture(TapGesture().onEnded {
+                    viewModel.recordViewedShow(show, using: recentSearchStore)
+                })
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("search-recent-\(query)")
+                .accessibilityIdentifier("search-recent-\(show.id)")
             }
         }
         .padding(14)
@@ -225,11 +206,50 @@ struct SearchView: View {
                             shelf: libraryStore.shelf(for: show.id)
                         )
                     }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        viewModel.recordViewedShow(show, using: recentSearchStore)
+                    })
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("search-result-\(show.id)")
                 }
             }
         }
+    }
+
+    private func recentShowRow(_ show: Show) -> some View {
+        HStack(spacing: 10) {
+            PosterImageView(
+                posterPath: show.posterPath,
+                width: 38,
+                height: 56
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(show.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                if !show.overview.isEmpty {
+                    Text(show.overview)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.45))
+        )
     }
 
     private var resultsLabel: String {

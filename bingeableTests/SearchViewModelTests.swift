@@ -133,34 +133,72 @@ struct SearchViewModelTests {
         #expect(viewModel.displayedResults.count == 3)
     }
 
-    @Test("Recent searches are deduped capped and clearable")
+    @Test("Recently viewed shows are deduped capped and clearable")
     @MainActor
-    func recentSearchesPersistWithCapAndDedupe() async throws {
-        let repository = MockSearchRepository(resultsByQuery: [:], defaultResult: [makeShow(id: 99, name: "Fallback", genres: [])])
+    func recentlyViewedPersistWithCapAndDedupe() async throws {
         let viewModel = SearchViewModel(debounceMilliseconds: 1)
         let recentStore = MockRecentSearchStore()
 
         for index in 0..<10 {
-            let query = "show\(index)"
-            viewModel.query = query
-            viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
-            try await Task.sleep(nanoseconds: 45_000_000)
+            let show = makeShow(
+                id: index,
+                name: "show\(index)",
+                genres: [Genre(id: 18, name: "Drama")]
+            )
+            viewModel.recordViewedShow(show, using: recentStore)
         }
 
-        viewModel.query = "SHOW9"
+        let latestSelection = makeShow(
+            id: 9,
+            name: "SHOW9",
+            genres: [Genre(id: 18, name: "Drama")]
+        )
+        viewModel.recordViewedShow(latestSelection, using: recentStore)
+
+        viewModel.loadRecentShows(from: recentStore)
+
+        #expect(viewModel.recentShows.count == 8)
+        #expect(viewModel.recentShows.first?.id == 9)
+        #expect(viewModel.recentShows.first?.name == "SHOW9")
+        #expect(viewModel.recentShows.contains(where: { $0.id == 2 }))
+        #expect(!viewModel.recentShows.contains(where: { $0.id == 1 }))
+        #expect(Set(viewModel.recentShows.map(\.id)).count == viewModel.recentShows.count)
+
+        viewModel.clearRecentShows(using: recentStore)
+        #expect(viewModel.recentShows.isEmpty)
+    }
+
+    @Test("Incremental typing does not auto-save recents until a show is viewed")
+    @MainActor
+    func incrementalTypingDoesNotAutoSaveRecents() async throws {
+        let repository = MockSearchRepository(
+            resultsByQuery: [
+                "br": [makeShow(id: 1, name: "Breaking Bad", genres: [Genre(id: 18, name: "Drama")])],
+                "bre": [makeShow(id: 1, name: "Breaking Bad", genres: [Genre(id: 18, name: "Drama")])],
+                "break": [makeShow(id: 1, name: "Breaking Bad", genres: [Genre(id: 18, name: "Drama")])]
+            ]
+        )
+        let viewModel = SearchViewModel(debounceMilliseconds: 1)
+        let recentStore = MockRecentSearchStore()
+
+        viewModel.query = "br"
         viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
-        try await Task.sleep(nanoseconds: 45_000_000)
+        try await Task.sleep(nanoseconds: 40_000_000)
 
-        viewModel.loadRecentQueries(from: recentStore)
+        viewModel.query = "bre"
+        viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
+        try await Task.sleep(nanoseconds: 40_000_000)
 
-        #expect(viewModel.recentQueries.count == 8)
-        #expect(viewModel.recentQueries.first == "SHOW9")
-        #expect(viewModel.recentQueries.contains("show2"))
-        #expect(!viewModel.recentQueries.contains("show1"))
-        #expect(Set(viewModel.recentQueries.map { $0.lowercased() }).count == viewModel.recentQueries.count)
+        viewModel.query = "break"
+        viewModel.handleQueryChange(using: repository, recentSearchStore: recentStore)
+        try await Task.sleep(nanoseconds: 40_000_000)
 
-        viewModel.clearRecentQueries(using: recentStore)
-        #expect(viewModel.recentQueries.isEmpty)
+        viewModel.loadRecentShows(from: recentStore)
+        #expect(viewModel.recentShows.isEmpty)
+
+        let selectedShow = try #require(viewModel.displayedResults.first)
+        viewModel.recordViewedShow(selectedShow, using: recentStore)
+        #expect(viewModel.recentShows.map(\.name) == ["Breaking Bad"])
     }
 
     private func makeShow(
@@ -241,35 +279,27 @@ struct SearchViewModelTests {
     @MainActor
     private final class MockRecentSearchStore: RecentSearchPersisting {
         private struct Entry {
-            var normalized: String
-            var display: String
+            var show: Show
             var updatedAt: Date
         }
 
         private var entries: [Entry] = []
         private let maxEntries = 8
 
-        func recentQueries() -> [String] {
+        func recentShows() -> [Show] {
             entries
                 .sorted { $0.updatedAt > $1.updatedAt }
-                .map(\.display)
+                .map(\.show)
         }
 
-        func record(query: String) {
-            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                return
-            }
-
-            let normalized = normalize(trimmed)
-            if let existingIndex = entries.firstIndex(where: { $0.normalized == normalized }) {
-                entries[existingIndex].display = trimmed
+        func record(show: Show) {
+            if let existingIndex = entries.firstIndex(where: { $0.show.id == show.id }) {
+                entries[existingIndex].show = show
                 entries[existingIndex].updatedAt = .now
             } else {
                 entries.append(
                     Entry(
-                        normalized: normalized,
-                        display: trimmed,
+                        show: show,
                         updatedAt: .now
                     )
                 )
@@ -283,13 +313,6 @@ struct SearchViewModelTests {
 
         func clearAll() {
             entries.removeAll()
-        }
-
-        private func normalize(_ query: String) -> String {
-            query
-                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
         }
     }
 }

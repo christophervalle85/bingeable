@@ -4,8 +4,8 @@ import SwiftData
 
 @MainActor
 protocol RecentSearchPersisting: AnyObject {
-    func recentQueries() -> [String]
-    func record(query: String)
+    func recentShows() -> [Show]
+    func record(show: Show)
     func clearAll()
 }
 
@@ -35,25 +35,23 @@ final class RecentSearchStore: ObservableObject, RecentSearchPersisting {
         }
     }
 
-    func recentQueries() -> [String] {
-        items.map(\.displayQuery)
+    func recentShows() -> [Show] {
+        items.map(mapShow(from:))
     }
 
-    func record(query: String) {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return
-        }
-
-        let normalized = normalizeQuery(trimmed)
-        if let existing = items.first(where: { $0.query == normalized }) {
-            existing.displayQuery = trimmed
+    func record(show: Show) {
+        if let existing = items.first(where: { $0.showID == show.id }) {
+            existing.name = show.name
+            existing.posterPath = show.posterPath
+            existing.overview = show.overview
             existing.updatedAt = .now
         } else {
             context.insert(
                 RecentSearchEntity(
-                    query: normalized,
-                    displayQuery: trimmed
+                    showID: show.id,
+                    name: show.name,
+                    posterPath: show.posterPath,
+                    overview: show.overview
                 )
             )
         }
@@ -91,10 +89,17 @@ final class RecentSearchStore: ObservableObject, RecentSearchPersisting {
         refresh()
     }
 
-    private func normalizeQuery(_ query: String) -> String {
-        query
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+    private func mapShow(from entity: RecentSearchEntity) -> Show {
+        Show(
+            id: entity.showID,
+            name: entity.name,
+            posterPath: entity.posterPath,
+            overview: entity.overview,
+            genres: [],
+            status: nil,
+            lastAirDate: nil,
+            nextEpisodeAirDate: nil,
+            airedEpisodeCount: nil
+        )
     }
 }

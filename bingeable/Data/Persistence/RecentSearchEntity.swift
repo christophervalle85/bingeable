@@ -3,17 +3,24 @@ import SwiftData
 
 @Model
 final class RecentSearchEntity {
-    var query: String
-    var displayQuery: String
+    @Attribute(.unique)
+    var showID: Int
+    var name: String
+    var posterPath: String?
+    var overview: String
     var updatedAt: Date
 
     init(
-        query: String,
-        displayQuery: String,
+        showID: Int,
+        name: String,
+        posterPath: String?,
+        overview: String,
         updatedAt: Date = .now
     ) {
-        self.query = query
-        self.displayQuery = displayQuery
+        self.showID = showID
+        self.name = name
+        self.posterPath = posterPath
+        self.overview = overview
         self.updatedAt = updatedAt
     }
 }
