@@ -56,6 +56,11 @@ actor TMDBClient {
         return response.results
     }
 
+    func tvGenres() async throws -> [TMDBGenreDTO] {
+        let response: TMDBGenreListResponse = try await request(path: "/genre/tv/list")
+        return response.genres
+    }
+
     func showDetail(id: Int) async throws -> TMDBShowDetailDTO {
         try await request(path: "/tv/\(id)")
     }

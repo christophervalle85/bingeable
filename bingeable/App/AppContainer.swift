@@ -14,8 +14,11 @@ final class AppContainer: ObservableObject {
         self.regionCode = regionProvider.regionCode
 
         self.sessionManager = SessionManager()
+        let environment = ProcessInfo.processInfo.environment
+        let useFixtureRepositoryForUITests = environment["UI_TEST_USE_FIXTURE_REPOSITORY"] == "1"
 
-        if AppConfiguration.isRunningInPreviewHost && AppConfiguration.discoverPreviewUseFixtureRepository {
+        if useFixtureRepositoryForUITests
+            || (AppConfiguration.isRunningInPreviewHost && AppConfiguration.discoverPreviewUseFixtureRepository) {
             self.showRepository = PreviewShowRepository()
             self.hasTMDBAPIKey = false
         } else {

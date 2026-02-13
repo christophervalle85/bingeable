@@ -19,6 +19,10 @@ nonisolated struct TMDBGenreDTO: Decodable {
     let name: String
 }
 
+nonisolated struct TMDBGenreListResponse: Decodable {
+    let genres: [TMDBGenreDTO]
+}
+
 nonisolated struct TMDBEpisodeDTO: Decodable {
     let airDate: String?
     let episodeNumber: Int?
