@@ -41,6 +41,8 @@ actor TMDBShowRepository: ShowRepository {
     private var detailTasks: [Int: Task<Show, Error>] = [:]
     private var providerTasks: [Int: Task<[WatchProvider], Error>] = [:]
     private var seasonEpisodeTasks: [SeasonKey: Task<[ShowEpisode], Error>] = [:]
+    private var genreLookup: [Int: Genre] = [:]
+    private var genreLookupTask: Task<[Int: Genre], Error>?
 
     init(
         client: TMDBClient,
@@ -79,10 +81,14 @@ actor TMDBShowRepository: ShowRepository {
         }
 
         do {
+            let genres = await currentGenreLookup()
             let response = try await client.searchTV(query: trimmed)
-            return response.map(Self.mapSummary)
+            return response.map { Self.mapSummary($0, genreLookup: genres) }
         } catch TMDBError.missingAPIKey {
-            return ShowFixtures.shows.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+            return ShowFixtures.shows.filter {
+                $0.name.localizedCaseInsensitiveContains(trimmed)
+                    || $0.overview.localizedCaseInsensitiveContains(trimmed)
+            }
         }
     }
 
@@ -173,6 +179,9 @@ actor TMDBShowRepository: ShowRepository {
         detailTasks.removeAll()
         providerTasks.removeAll()
         seasonEpisodeTasks.removeAll()
+        genreLookup.removeAll()
+        genreLookupTask?.cancel()
+        genreLookupTask = nil
         await client.clearURLCache()
         await detailCache.clear()
     }
@@ -196,12 +205,18 @@ actor TMDBShowRepository: ShowRepository {
     }
 
     nonisolated private static func mapSummary(_ dto: TMDBShowSummaryDTO) -> Show {
-        Show(
+        mapSummary(dto, genreLookup: [:])
+    }
+
+    nonisolated private static func mapSummary(_ dto: TMDBShowSummaryDTO, genreLookup: [Int: Genre]) -> Show {
+        let genres = (dto.genreIds ?? []).compactMap { genreLookup[$0] }
+
+        return Show(
             id: dto.id,
             name: dto.name,
             posterPath: dto.posterPath,
             overview: dto.overview,
-            genres: [],
+            genres: genres,
             status: nil,
             lastAirDate: nil,
             nextEpisodeAirDate: nil,
@@ -263,6 +278,36 @@ actor TMDBShowRepository: ShowRepository {
             .sorted { lhs, rhs in
                 lhs.episodeNumber < rhs.episodeNumber
             }
+    }
+
+    private func currentGenreLookup() async -> [Int: Genre] {
+        if !genreLookup.isEmpty {
+            return genreLookup
+        }
+
+        if let task = genreLookupTask {
+            return (try? await task.value) ?? [:]
+        }
+
+        let task = Task<[Int: Genre], Error> {
+            let remoteGenres = try await client.tvGenres()
+            return Dictionary(
+                uniqueKeysWithValues: remoteGenres.map { dto in
+                    (dto.id, Genre(id: dto.id, name: dto.name))
+                }
+            )
+        }
+
+        genreLookupTask = task
+        defer { genreLookupTask = nil }
+
+        do {
+            let resolved = try await task.value
+            genreLookup = resolved
+            return resolved
+        } catch {
+            return [:]
+        }
     }
 }
 
