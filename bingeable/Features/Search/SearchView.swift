@@ -26,10 +26,6 @@ struct SearchView: View {
                         recentsCard
                     }
 
-                    if viewModel.isSearching {
-                        loadingCard
-                    }
-
                     if viewModel.shouldShowNoResultsState {
                         noResultsCard
                     }
@@ -43,7 +39,14 @@ struct SearchView: View {
                 .accessibilityIdentifier("search-scroll")
             }
             .scrollIndicators(.hidden)
+            .allowsHitTesting(!viewModel.isSearching)
+
+            if viewModel.isSearching {
+                loadingOverlay
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isSearching)
         .navigationTitle("Search")
         .searchable(text: $viewModel.query, prompt: "Search shows")
         .task {
@@ -75,18 +78,12 @@ struct SearchView: View {
         .accessibilityIdentifier("search-empty-no-results")
     }
 
-    private var loadingCard: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-            Text("Searching...")
-                .font(.subheadline.weight(.semibold))
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground)
+    private var loadingOverlay: some View {
+        ProgressView()
+            .controlSize(.large)
+            .tint(.primary)
+            .scaleEffect(1.2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .accessibilityIdentifier("search-loading-indicator")
     }
 
