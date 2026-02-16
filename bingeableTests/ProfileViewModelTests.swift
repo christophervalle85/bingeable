@@ -52,9 +52,10 @@ struct ProfileViewModelTests {
 
     @Test("Scope switches load per-account settings")
     @MainActor
-    func scopeSwitchReload() throws {
+    func scopeSwitchReload() async throws {
         let defaults = isolatedDefaults()
-        let sessionManager = SessionManager(defaults: defaults)
+        let authAdapter = MockFirebaseAuthAdapter()
+        let sessionManager = SessionManager(defaults: defaults, authAdapter: authAdapter)
         sessionManager.continueAsGuest()
 
         let store = ProfileSettingsStore(defaults: defaults)
@@ -69,7 +70,8 @@ struct ProfileViewModelTests {
 
         #expect(viewModel.displayName == "Guest User")
 
-        try sessionManager.signUp(email: "tester@example.com", password: "123456")
+        try await sessionManager.signUp(email: "tester@example.com", password: "123456")
+        await Task.yield()
         viewModel.handleAuthStateChange()
 
         #expect(viewModel.activeScope == ProfileScopeKey.signedIn("tester@example.com"))
@@ -100,5 +102,46 @@ struct ProfileViewModelTests {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         return defaults
+    }
+
+    private final class MockFirebaseAuthAdapter: FirebaseAuthAdapting {
+        private var listeners: [UUID: @Sendable (AuthSessionUser?) -> Void] = [:]
+        private var current: AuthSessionUser?
+
+        func currentUser() -> AuthSessionUser? {
+            current
+        }
+
+        func listenAuthState(_ handler: @escaping @Sendable (AuthSessionUser?) -> Void) -> AuthStateListenerHandle {
+            let id = UUID()
+            listeners[id] = handler
+            handler(current)
+            return AuthStateListenerHandle { [weak self] in
+                self?.listeners[id] = nil
+            }
+        }
+
+        func signIn(email: String, password _: String) async throws {
+            let uid = "uid_\(email.lowercased())"
+            current = AuthSessionUser(uid: uid, email: email.lowercased())
+            notify()
+        }
+
+        func signUp(email: String, password _: String) async throws {
+            let uid = "uid_\(email.lowercased())"
+            current = AuthSessionUser(uid: uid, email: email.lowercased())
+            notify()
+        }
+
+        func signOut() throws {
+            current = nil
+            notify()
+        }
+
+        private func notify() {
+            for listener in listeners.values {
+                listener(current)
+            }
+        }
     }
 }

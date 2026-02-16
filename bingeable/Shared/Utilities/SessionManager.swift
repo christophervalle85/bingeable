@@ -1,20 +1,25 @@
 import Foundation
 import Combine
+#if canImport(FirebaseAuth)
+import FirebaseAuth
+#endif
 
 @MainActor
 final class SessionManager: ObservableObject {
     enum AuthState: Equatable {
-        case undetermined
-        case guest
-        case signedIn(email: String)
+        case signedOut
+        case guestLocal
+        case signedIn(uid: String, email: String?)
     }
 
     enum AuthError: LocalizedError {
         case invalidEmail
         case invalidPassword
-        case accountAlreadyExists
+        case emailAlreadyInUse
         case accountNotFound
         case wrongPassword
+        case backendUnavailable
+        case unknown
 
         var errorDescription: String? {
             switch self {
@@ -22,122 +27,158 @@ final class SessionManager: ObservableObject {
                 return "Enter a valid email address."
             case .invalidPassword:
                 return "Password must have at least 6 characters."
-            case .accountAlreadyExists:
+            case .emailAlreadyInUse:
                 return "An account already exists for that email."
             case .accountNotFound:
                 return "No account found for that email."
             case .wrongPassword:
                 return "The password is incorrect."
+            case .backendUnavailable:
+                return "Authentication service is unavailable."
+            case .unknown:
+                return "Authentication failed. Please try again."
             }
         }
     }
 
-    @Published private(set) var authState: AuthState = .undetermined
+    @Published private(set) var authState: AuthState = .signedOut
 
     var profileScopeIdentifier: String {
         switch authState {
-        case let .signedIn(email):
-            return email
-        case .guest:
+        case let .signedIn(uid, email):
+            return email ?? uid
+        case .guestLocal:
             return "guest"
-        case .undetermined:
+        case .signedOut:
             return "signed_out"
         }
     }
 
     var libraryScopeIdentifier: String {
         switch authState {
-        case let .signedIn(email):
-            return email
-        case .guest, .undetermined:
+        case let .signedIn(uid, _):
+            return uid
+        case .guestLocal, .signedOut:
             return "guest"
         }
     }
 
     private let defaults: UserDefaults
+    private let authAdapter: any FirebaseAuthAdapting
+    private var authStateListener: AuthStateListenerHandle?
+    private var remoteUser: AuthSessionUser?
+    private var isGuestLocalEnabled: Bool
 
     private enum Keys {
-        static let guestMode = "session.guestMode"
-        static let currentEmail = "session.currentEmail"
-        static let accounts = "session.accounts"
+        static let guestLocalEnabled = "session.guestLocal.enabled"
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        authAdapter: (any FirebaseAuthAdapting)? = nil
+    ) {
         self.defaults = defaults
-        restoreState()
+        self.authAdapter = authAdapter ?? FirebaseAuthAdapter()
+        self.isGuestLocalEnabled = defaults.bool(forKey: Keys.guestLocalEnabled)
+        self.authState = isGuestLocalEnabled ? .guestLocal : .signedOut
+        attachAuthListener()
+    }
+
+    func enterGuestLocal() {
+        isGuestLocalEnabled = true
+        defaults.set(true, forKey: Keys.guestLocalEnabled)
+        authState = .guestLocal
     }
 
     func continueAsGuest() {
-        defaults.set(true, forKey: Keys.guestMode)
-        defaults.removeObject(forKey: Keys.currentEmail)
-        authState = .guest
+        enterGuestLocal()
     }
 
-    func signIn(email: String, password: String) throws {
+    func exitGuestLocal() {
+        isGuestLocalEnabled = false
+        defaults.set(false, forKey: Keys.guestLocalEnabled)
+        updateAuthStateFromSources()
+    }
+
+    func signIn(email: String, password: String) async throws {
         let normalizedEmail = try validateEmail(email)
         let password = try validatePassword(password)
+        isGuestLocalEnabled = false
+        defaults.set(false, forKey: Keys.guestLocalEnabled)
 
-        guard let storedPassword = accounts[normalizedEmail] else {
-            throw AuthError.accountNotFound
+        do {
+            try await authAdapter.signIn(email: normalizedEmail, password: password)
+        } catch {
+            throw mapAuthError(error)
         }
-
-        guard storedPassword == password else {
-            throw AuthError.wrongPassword
-        }
-
-        defaults.set(normalizedEmail, forKey: Keys.currentEmail)
-        defaults.set(false, forKey: Keys.guestMode)
-        authState = .signedIn(email: normalizedEmail)
     }
 
-    func signUp(email: String, password: String) throws {
+    func signUp(email: String, password: String) async throws {
         let normalizedEmail = try validateEmail(email)
         let password = try validatePassword(password)
+        isGuestLocalEnabled = false
+        defaults.set(false, forKey: Keys.guestLocalEnabled)
 
-        var nextAccounts = accounts
-        guard nextAccounts[normalizedEmail] == nil else {
-            throw AuthError.accountAlreadyExists
+        do {
+            try await authAdapter.signUp(email: normalizedEmail, password: password)
+        } catch {
+            throw mapAuthError(error)
         }
-
-        nextAccounts[normalizedEmail] = password
-        saveAccounts(nextAccounts)
-        defaults.set(normalizedEmail, forKey: Keys.currentEmail)
-        defaults.set(false, forKey: Keys.guestMode)
-        authState = .signedIn(email: normalizedEmail)
     }
 
-    func signOut() {
-        defaults.removeObject(forKey: Keys.currentEmail)
-        defaults.removeObject(forKey: Keys.guestMode)
-        authState = .undetermined
-    }
-
-    private func restoreState() {
-        if let currentEmail = defaults.string(forKey: Keys.currentEmail), !currentEmail.isEmpty {
-            authState = .signedIn(email: currentEmail)
+    func signOut() throws {
+        if authState == .guestLocal {
+            exitGuestLocal()
             return
         }
 
-        if defaults.bool(forKey: Keys.guestMode) {
-            authState = .guest
+        guard case .signedIn = authState else {
             return
         }
 
-        authState = .undetermined
+        do {
+            try authAdapter.signOut()
+        } catch {
+            throw mapAuthError(error)
+        }
     }
 
-    private var accounts: [String: String] {
-        guard let data = defaults.data(forKey: Keys.accounts) else {
-            return [:]
+    private func attachAuthListener() {
+        authStateListener?.cancel()
+        authStateListener = authAdapter.listenAuthState { [weak self] user in
+            guard let self else { return }
+
+            Task { @MainActor in
+                self.handleRemoteAuthStateChange(user)
+            }
         }
 
-        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+        handleRemoteAuthStateChange(authAdapter.currentUser())
     }
 
-    private func saveAccounts(_ accounts: [String: String]) {
-        if let encoded = try? JSONEncoder().encode(accounts) {
-            defaults.set(encoded, forKey: Keys.accounts)
+    private func handleRemoteAuthStateChange(_ user: AuthSessionUser?) {
+        remoteUser = user
+
+        if user != nil, isGuestLocalEnabled {
+            isGuestLocalEnabled = false
+            defaults.set(false, forKey: Keys.guestLocalEnabled)
         }
+
+        updateAuthStateFromSources()
+    }
+
+    private func updateAuthStateFromSources() {
+        if let user = remoteUser {
+            authState = .signedIn(uid: user.uid, email: user.email)
+            return
+        }
+
+        if isGuestLocalEnabled {
+            authState = .guestLocal
+            return
+        }
+
+        authState = .signedOut
     }
 
     private func validateEmail(_ input: String) throws -> String {
@@ -154,5 +195,33 @@ final class SessionManager: ObservableObject {
             throw AuthError.invalidPassword
         }
         return trimmed
+    }
+
+    private func mapAuthError(_ error: Error) -> AuthError {
+        if error is FirebaseAuthAdapterError {
+            return .backendUnavailable
+        }
+
+#if canImport(FirebaseAuth)
+        let nsError = error as NSError
+        guard let code = AuthErrorCode(rawValue: nsError.code) else {
+            return .unknown
+        }
+
+        switch code {
+        case .invalidEmail:
+            return .invalidEmail
+        case .emailAlreadyInUse:
+            return .emailAlreadyInUse
+        case .userNotFound:
+            return .accountNotFound
+        case .wrongPassword, .invalidCredential:
+            return .wrongPassword
+        default:
+            return .unknown
+        }
+#else
+        return .unknown
+#endif
     }
 }

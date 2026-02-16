@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var selectedSection: ProfileSection = .profile
     @State private var isClearing = false
     @State private var cacheStatusMessage: String?
+    @State private var authStatusMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -477,11 +478,16 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            if sessionManager.authState != .undetermined {
+            if sessionManager.authState != .signedOut {
                 Divider()
 
                 Button(role: .destructive) {
-                    sessionManager.signOut()
+                    do {
+                        try sessionManager.signOut()
+                        authStatusMessage = nil
+                    } catch {
+                        authStatusMessage = error.localizedDescription
+                    }
                 } label: {
                     Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         .font(.subheadline.weight(.semibold))
@@ -490,6 +496,12 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .padding(.vertical, 2)
                 .accessibilityIdentifier("profile-sign-out")
+
+                if let authStatusMessage {
+                    Text(authStatusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("You are currently signed out.")
                     .font(.subheadline)

@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9D691EAE2F42D46600ABB9EF /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9D691EAD2F42D46600ABB9EF /* FirebaseAuth */; };
+		9D691EB02F42D46600ABB9EF /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9D691EAF2F42D46600ABB9EF /* FirebaseCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9D0815092F38728C00753936 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9D691EB02F42D46600ABB9EF /* FirebaseCore in Frameworks */,
+				9D691EAE2F42D46600ABB9EF /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = bingeable;
 			packageProductDependencies = (
+				9D691EAD2F42D46600ABB9EF /* FirebaseAuth */,
+				9D691EAF2F42D46600ABB9EF /* FirebaseCore */,
 			);
 			productName = bingeable;
 			productReference = 9D0814FB2F38728C00753936 /* bingeable.app */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = 9D0814F22F38728C00753936;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9D0814FC2F38728C00753936 /* Products */;
 			projectDirPath = "";
@@ -605,6 +617,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9D691EAD2F42D46600ABB9EF /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		9D691EAF2F42D46600ABB9EF /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9D0814F32F38728C00753936 /* Project object */;
 }

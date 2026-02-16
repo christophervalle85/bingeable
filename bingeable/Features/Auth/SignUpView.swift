@@ -2,11 +2,11 @@ import SwiftUI
 
 struct SignUpView: View {
     @EnvironmentObject private var sessionManager: SessionManager
-    @Environment(\.dismiss) private var dismiss
 
     @State private var email = ""
     @State private var password = ""
     @State private var errorMessage: String?
+    @State private var isLoading = false
 
     var body: some View {
         Form {
@@ -24,6 +24,13 @@ struct SignUpView: View {
 #endif
             }
 
+            Section {
+                Button("Continue as Guest") {
+                    errorMessage = nil
+                    sessionManager.enterGuestLocal()
+                }
+            }
+
             if let errorMessage {
                 Section {
                     Text(errorMessage)
@@ -32,10 +39,13 @@ struct SignUpView: View {
             }
 
             Section {
-                Button("Create Account") {
-                    handleSignUp()
+                Button(isLoading ? "Creating..." : "Create Account") {
+                    Task {
+                        await handleSignUp()
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
+                .disabled(isLoading)
             }
         }
         .navigationTitle("Sign Up")
@@ -44,10 +54,17 @@ struct SignUpView: View {
 #endif
     }
 
-    private func handleSignUp() {
+    private func handleSignUp() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+
+        defer {
+            isLoading = false
+        }
+
         do {
-            try sessionManager.signUp(email: email, password: password)
-            dismiss()
+            try await sessionManager.signUp(email: email, password: password)
         } catch {
             errorMessage = error.localizedDescription
         }

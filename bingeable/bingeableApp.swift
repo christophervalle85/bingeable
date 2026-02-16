@@ -11,6 +11,8 @@ struct bingeableApp: App {
     private let modelContainer: ModelContainer
 
     init() {
+        FirebaseBootstrap.configureIfAvailable()
+
         let container = Self.makeModelContainer()
         self.modelContainer = container
 

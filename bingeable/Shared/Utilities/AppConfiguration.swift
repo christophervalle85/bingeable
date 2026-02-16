@@ -143,6 +143,27 @@ enum AppConfiguration {
         return 0.95
 #endif
     }()
+    nonisolated static let firebaseAuthUseEmulator: Bool = {
+#if DEBUG
+        boolFlag(named: "FIREBASE_AUTH_USE_EMULATOR", default: false)
+#else
+        return false
+#endif
+    }()
+    nonisolated static let firebaseAuthEmulatorHost: String = {
+#if DEBUG
+        stringFlag(named: "FIREBASE_AUTH_EMULATOR_HOST", default: "127.0.0.1")
+#else
+        return "127.0.0.1"
+#endif
+    }()
+    nonisolated static let firebaseAuthEmulatorPort: Int = {
+#if DEBUG
+        intFlag(named: "FIREBASE_AUTH_EMULATOR_PORT", default: 9099)
+#else
+        return 9099
+#endif
+    }()
 
     nonisolated static func makeURLCache() -> URLCache {
         URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 250 * 1024 * 1024)
@@ -174,5 +195,25 @@ enum AppConfiguration {
         }
 
         return parsed
+    }
+
+    private nonisolated static func intFlag(named key: String, default defaultValue: Int) -> Int {
+        guard let rawValue = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty,
+              let parsed = Int(rawValue),
+              parsed > 0 else {
+            return defaultValue
+        }
+
+        return parsed
+    }
+
+    private nonisolated static func stringFlag(named key: String, default defaultValue: String) -> String {
+        guard let rawValue = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty else {
+            return defaultValue
+        }
+
+        return rawValue
     }
 }

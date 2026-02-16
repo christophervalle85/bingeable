@@ -5,9 +5,9 @@ struct LaunchGateView: View {
 
     var body: some View {
         switch sessionManager.authState {
-        case .guest, .signedIn:
+        case .guestLocal, .signedIn:
             MainTabView()
-        case .undetermined:
+        case .signedOut:
             AuthEntryView()
         }
     }
@@ -33,7 +33,7 @@ private struct AuthEntryView: View {
                     .padding(.horizontal, 24)
 
                 Button("Continue as Guest") {
-                    sessionManager.continueAsGuest()
+                    sessionManager.enterGuestLocal()
                 }
                 .buttonStyle(.borderedProminent)
 

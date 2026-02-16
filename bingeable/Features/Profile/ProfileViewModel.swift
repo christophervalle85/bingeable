@@ -119,11 +119,11 @@ final class ProfileViewModel: ObservableObject {
         }
 
         switch sessionManager.authState {
-        case .guest:
+        case .guestLocal:
             return "Guest"
-        case let .signedIn(email):
-            return email
-        case .undetermined:
+        case let .signedIn(_, email):
+            return email ?? "Signed in"
+        case .signedOut:
             return "Signed out"
         }
     }
