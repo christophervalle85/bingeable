@@ -6,6 +6,7 @@ import SwiftUI
 final class AppContainer: ObservableObject {
     let sessionManager: SessionManager
     let showRepository: any ShowRepository
+    let librarySyncService: any LibrarySyncServicing
     let regionCode: String
     let hasTMDBAPIKey: Bool
 
@@ -14,6 +15,7 @@ final class AppContainer: ObservableObject {
         self.regionCode = regionProvider.regionCode
 
         self.sessionManager = SessionManager()
+        self.librarySyncService = FirestoreLibrarySyncService()
         let environment = ProcessInfo.processInfo.environment
         let useFixtureRepositoryForUITests = environment["UI_TEST_USE_FIXTURE_REPOSITORY"] == "1"
 

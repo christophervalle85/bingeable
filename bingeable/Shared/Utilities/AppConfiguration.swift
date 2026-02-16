@@ -164,6 +164,27 @@ enum AppConfiguration {
         return 9099
 #endif
     }()
+    nonisolated static let firestoreUseEmulator: Bool = {
+#if DEBUG
+        boolFlag(named: "FIRESTORE_USE_EMULATOR", default: false)
+#else
+        return false
+#endif
+    }()
+    nonisolated static let firestoreEmulatorHost: String = {
+#if DEBUG
+        stringFlag(named: "FIRESTORE_EMULATOR_HOST", default: "127.0.0.1")
+#else
+        return "127.0.0.1"
+#endif
+    }()
+    nonisolated static let firestoreEmulatorPort: Int = {
+#if DEBUG
+        intFlag(named: "FIRESTORE_EMULATOR_PORT", default: 8080)
+#else
+        return 8080
+#endif
+    }()
 
     nonisolated static func makeURLCache() -> URLCache {
         URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 250 * 1024 * 1024)

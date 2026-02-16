@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		9D691EAE2F42D46600ABB9EF /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9D691EAD2F42D46600ABB9EF /* FirebaseAuth */; };
 		9D691EB02F42D46600ABB9EF /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9D691EAF2F42D46600ABB9EF /* FirebaseCore */; };
+		9D691EB82F430E0E00ABB9EF /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9D691EB72F430E0E00ABB9EF /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				9D691EB02F42D46600ABB9EF /* FirebaseCore in Frameworks */,
 				9D691EAE2F42D46600ABB9EF /* FirebaseAuth in Frameworks */,
+				9D691EB82F430E0E00ABB9EF /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -122,6 +124,7 @@
 			packageProductDependencies = (
 				9D691EAD2F42D46600ABB9EF /* FirebaseAuth */,
 				9D691EAF2F42D46600ABB9EF /* FirebaseCore */,
+				9D691EB72F430E0E00ABB9EF /* FirebaseFirestore */,
 			);
 			productName = bingeable;
 			productReference = 9D0814FB2F38728C00753936 /* bingeable.app */;
@@ -663,6 +666,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		9D691EB72F430E0E00ABB9EF /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9D691EAC2F42D46600ABB9EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
