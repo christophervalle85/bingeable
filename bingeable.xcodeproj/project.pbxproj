@@ -108,6 +108,7 @@
 			buildPhases = (
 				9D0814F72F38728C00753936 /* Sources */,
 				9D0814F82F38728C00753936 /* Frameworks */,
+				9D691EB52F42F21A00ABB9EF /* ShellScript */,
 				9D0814F92F38728C00753936 /* Resources */,
 			);
 			buildRules = (
@@ -242,6 +243,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9D691EB52F42F21A00ABB9EF /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/bingeable/GoogleService-Info-Dev.plist",
+				"$(SRCROOT)/bingeable/GoogleService-Info-Prod.plist",
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/GoogleService-Info.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nset -euo pipefail\n\n# Choose plist based on build configuration\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  PLIST_SOURCE=\"${PROJECT_DIR}/bingeable/GoogleService-Info-Dev.plist\"\nelse\n  PLIST_SOURCE=\"${PROJECT_DIR}/bingeable/GoogleService-Info-Prod.plist\"\nfi\n\nPLIST_DEST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/GoogleService-Info.plist\"\n\necho \"Firebase plist source: ${PLIST_SOURCE}\"\necho \"Firebase plist dest:   ${PLIST_DEST}\"\n\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  PLIST_SOURCE=\"${SRCROOT}/bingeable/GoogleService-Info-Dev.plist\"\nelse\n  PLIST_SOURCE=\"${SRCROOT}/bingeable/GoogleService-Info-Prod.plist\"\nfi\n\ncp -f \"${PLIST_SOURCE}\" \"${PLIST_DEST}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9D0814F72F38728C00753936 /* Sources */ = {
