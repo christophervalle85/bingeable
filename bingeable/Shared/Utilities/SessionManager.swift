@@ -78,7 +78,13 @@ final class SessionManager: ObservableObject {
         authAdapter: (any FirebaseAuthAdapting)? = nil
     ) {
         self.defaults = defaults
-        self.authAdapter = authAdapter ?? FirebaseAuthAdapter()
+        if let authAdapter {
+            self.authAdapter = authAdapter
+        } else if AppConfiguration.isRunningInPreviewHost || AppConfiguration.isRunningUnderXCTest {
+            self.authAdapter = DisabledFirebaseAuthAdapter()
+        } else {
+            self.authAdapter = FirebaseAuthAdapter()
+        }
         self.isGuestLocalEnabled = defaults.bool(forKey: Keys.guestLocalEnabled)
         self.authState = isGuestLocalEnabled ? .guestLocal : .signedOut
         attachAuthListener()
@@ -224,4 +230,25 @@ final class SessionManager: ObservableObject {
         return .unknown
 #endif
     }
+}
+
+private struct DisabledFirebaseAuthAdapter: FirebaseAuthAdapting {
+    func currentUser() -> AuthSessionUser? {
+        nil
+    }
+
+    func listenAuthState(_ handler: @escaping @Sendable (AuthSessionUser?) -> Void) -> AuthStateListenerHandle {
+        handler(nil)
+        return AuthStateListenerHandle {}
+    }
+
+    func signIn(email _: String, password _: String) async throws {
+        throw FirebaseAuthAdapterError.unavailable
+    }
+
+    func signUp(email _: String, password _: String) async throws {
+        throw FirebaseAuthAdapterError.unavailable
+    }
+
+    func signOut() throws {}
 }

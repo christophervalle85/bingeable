@@ -10,10 +10,21 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var activeScopeID: String = guestScopeID
 
     private let context: ModelContext
+    private var syncService: (any LibrarySyncServicing)?
+    private var scopeSyncTask: Task<Void, Never>?
 
     init(context: ModelContext) {
         self.context = context
         refresh()
+    }
+
+    deinit {
+        scopeSyncTask?.cancel()
+    }
+
+    func configure(syncService: any LibrarySyncServicing) {
+        self.syncService = syncService
+        startScopeSynchronization(force: true)
     }
 
     func setActiveScope(_ scopeID: String) {
@@ -24,6 +35,7 @@ final class LibraryStore: ObservableObject {
 
         activeScopeID = normalized
         refresh()
+        startScopeSynchronization(force: true)
     }
 
     func refresh() {
@@ -92,18 +104,30 @@ final class LibraryStore: ObservableObject {
         }
 
         saveAndRefresh()
+
+        if shouldSync(scopeID: scopeID), let tracked = trackedShow(for: show.id) {
+            enqueueRemoteUpsert(tracked, scopeID: scopeID)
+        }
     }
 
     func remove(showID: Int) {
+        let scopeID = activeScopeID
+
         guard let existing = items.first(where: { $0.showID == showID }) else {
             return
         }
 
         context.delete(existing)
         saveAndRefresh()
+
+        if shouldSync(scopeID: scopeID) {
+            enqueueRemoteRemoval(showID: showID, scopeID: scopeID)
+        }
     }
 
     func move(showID: Int, to shelf: LibraryShelf) {
+        let scopeID = activeScopeID
+
         guard let existing = items.first(where: { $0.showID == showID }) else {
             return
         }
@@ -111,6 +135,10 @@ final class LibraryStore: ObservableObject {
         existing.shelf = shelf
         existing.updatedAt = .now
         saveAndRefresh()
+
+        if shouldSync(scopeID: scopeID), let tracked = trackedShow(for: showID) {
+            enqueueRemoteUpsert(tracked, scopeID: scopeID)
+        }
     }
 
     func clearAll() {
@@ -181,5 +209,150 @@ final class LibraryStore: ObservableObject {
             return guestScopeID
         }
         return trimmed
+    }
+
+    private func shouldSync(scopeID: String) -> Bool {
+        scopeID != Self.guestScopeID
+    }
+
+    private func trackedShow(for showID: Int) -> TrackedShow? {
+        guard let entity = items.first(where: { $0.showID == showID }) else {
+            return nil
+        }
+
+        return mapTrackedShow(from: entity)
+    }
+
+    private func enqueueRemoteUpsert(_ trackedShow: TrackedShow, scopeID: String) {
+        guard let syncService else {
+            return
+        }
+
+        Task {
+            do {
+                try await syncService.upsert(trackedShow, for: scopeID)
+            } catch {
+                NSLog("Unable to sync upsert for show \(trackedShow.id): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func enqueueRemoteRemoval(showID: Int, scopeID: String) {
+        guard let syncService else {
+            return
+        }
+
+        Task {
+            do {
+                try await syncService.remove(showID: showID, for: scopeID)
+            } catch {
+                NSLog("Unable to sync removal for show \(showID): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func startScopeSynchronization(force: Bool = false) {
+        guard shouldSync(scopeID: activeScopeID), let syncService else {
+            scopeSyncTask?.cancel()
+            scopeSyncTask = nil
+            return
+        }
+
+        if !force, scopeSyncTask != nil {
+            return
+        }
+
+        let scopeID = activeScopeID
+        scopeSyncTask?.cancel()
+        scopeSyncTask = Task { [weak self] in
+            await self?.synchronizeScope(scopeID: scopeID, using: syncService)
+        }
+    }
+
+    private func synchronizeScope(scopeID: String, using syncService: any LibrarySyncServicing) async {
+        guard scopeID == activeScopeID else {
+            return
+        }
+
+        do {
+            let remoteShows = try await syncService.fetchLibrary(for: scopeID)
+
+            if Task.isCancelled || scopeID != activeScopeID {
+                return
+            }
+
+            let localShows = allTrackedShows()
+            let localByID = Dictionary(uniqueKeysWithValues: localShows.map { ($0.id, $0) })
+            let remoteByID = Dictionary(uniqueKeysWithValues: remoteShows.map { ($0.id, $0) })
+            let allIDs = Set(localByID.keys).union(remoteByID.keys)
+
+            var didMutateLocal = false
+            var localShowsToPush: [TrackedShow] = []
+
+            for showID in allIDs {
+                let local = localByID[showID]
+                let remote = remoteByID[showID]
+
+                switch (local, remote) {
+                case let (local?, nil):
+                    localShowsToPush.append(local)
+                case let (nil, remote?):
+                    applyRemoteTrackedShow(remote, scopeID: scopeID)
+                    didMutateLocal = true
+                case let (local?, remote?):
+                    if remote.updatedAt > local.updatedAt {
+                        applyRemoteTrackedShow(remote, scopeID: scopeID)
+                        didMutateLocal = true
+                    } else if local.updatedAt >= remote.updatedAt {
+                        localShowsToPush.append(local)
+                    }
+                case (nil, nil):
+                    break
+                }
+            }
+
+            if didMutateLocal {
+                saveAndRefresh()
+            }
+
+            for localShow in localShowsToPush {
+                if Task.isCancelled || scopeID != activeScopeID {
+                    return
+                }
+
+                do {
+                    try await syncService.upsert(localShow, for: scopeID)
+                } catch {
+                    NSLog("Unable to push local show \(localShow.id) to cloud: \(error.localizedDescription)")
+                }
+            }
+        } catch {
+            NSLog("Unable to fetch cloud library for scope \(scopeID): \(error.localizedDescription)")
+        }
+    }
+
+    private func applyRemoteTrackedShow(_ trackedShow: TrackedShow, scopeID: String) {
+        if let existing = items.first(where: { $0.showID == trackedShow.id }) {
+            existing.scopeID = scopeID
+            existing.scopedShowID = TrackedShowEntity.makeScopedShowID(scopeID: scopeID, showID: trackedShow.id)
+            existing.shelf = trackedShow.shelf
+            existing.name = trackedShow.name
+            existing.posterPath = trackedShow.posterPath
+            existing.overview = trackedShow.overview
+            existing.addedAt = trackedShow.addedAt
+            existing.updatedAt = trackedShow.updatedAt
+        } else {
+            let entity = TrackedShowEntity(
+                showID: trackedShow.id,
+                scopeID: scopeID,
+                shelf: trackedShow.shelf,
+                name: trackedShow.name,
+                posterPath: trackedShow.posterPath,
+                overview: trackedShow.overview,
+                addedAt: trackedShow.addedAt,
+                updatedAt: trackedShow.updatedAt
+            )
+            context.insert(entity)
+        }
     }
 }

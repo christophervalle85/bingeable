@@ -52,7 +52,7 @@ import FirebaseAuth
 struct FirebaseAuthAdapter: FirebaseAuthAdapting {
     init() {
 #if DEBUG
-        if AppConfiguration.firebaseAuthUseEmulator {
+        if AppConfiguration.firebaseAuthUseEmulator, FirebaseBootstrap.isConfigured {
             Auth.auth().useEmulator(
                 withHost: AppConfiguration.firebaseAuthEmulatorHost,
                 port: AppConfiguration.firebaseAuthEmulatorPort
@@ -62,10 +62,18 @@ struct FirebaseAuthAdapter: FirebaseAuthAdapting {
     }
 
     func currentUser() -> AuthSessionUser? {
-        map(user: Auth.auth().currentUser)
+        guard FirebaseBootstrap.isConfigured else {
+            return nil
+        }
+        return map(user: Auth.auth().currentUser)
     }
 
     func listenAuthState(_ handler: @escaping @Sendable (AuthSessionUser?) -> Void) -> AuthStateListenerHandle {
+        guard FirebaseBootstrap.isConfigured else {
+            handler(nil)
+            return AuthStateListenerHandle {}
+        }
+
         let listener = Auth.auth().addStateDidChangeListener { _, user in
             handler(map(user: user))
         }
@@ -76,14 +84,23 @@ struct FirebaseAuthAdapter: FirebaseAuthAdapting {
     }
 
     func signIn(email: String, password: String) async throws {
+        guard FirebaseBootstrap.isConfigured else {
+            throw FirebaseAuthAdapterError.unavailable
+        }
         _ = try await Auth.auth().signIn(withEmail: email, password: password)
     }
 
     func signUp(email: String, password: String) async throws {
+        guard FirebaseBootstrap.isConfigured else {
+            throw FirebaseAuthAdapterError.unavailable
+        }
         _ = try await Auth.auth().createUser(withEmail: email, password: password)
     }
 
     func signOut() throws {
+        guard FirebaseBootstrap.isConfigured else {
+            return
+        }
         try Auth.auth().signOut()
     }
 
@@ -94,6 +111,7 @@ struct FirebaseAuthAdapter: FirebaseAuthAdapting {
 
         return AuthSessionUser(uid: user.uid, email: user.email)
     }
+
 }
 #else
 struct FirebaseAuthAdapter: FirebaseAuthAdapting {

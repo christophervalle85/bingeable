@@ -1,6 +1,6 @@
 import Foundation
 
-struct TrackedShow: Identifiable, Hashable {
+struct TrackedShow: Identifiable, Hashable, Sendable {
     let id: Int
     var shelf: LibraryShelf
     var addedAt: Date

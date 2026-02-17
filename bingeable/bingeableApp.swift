@@ -1,8 +1,26 @@
 import SwiftData
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+
+#if canImport(UIKit)
+final class FirebaseAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        FirebaseBootstrap.configureIfAvailable()
+        return true
+    }
+}
+#endif
 
 @main
 struct bingeableApp: App {
+#if canImport(UIKit)
+    @UIApplicationDelegateAdaptor(FirebaseAppDelegate.self) private var firebaseAppDelegate
+#endif
     @StateObject private var appContainer: AppContainer
     @StateObject private var libraryStore: LibraryStore
     @StateObject private var recentSearchStore: RecentSearchStore
@@ -22,6 +40,7 @@ struct bingeableApp: App {
         let profileSettingsStore = ProfileSettingsStore()
         let environment = ProcessInfo.processInfo.environment
 
+        libraryStore.configure(syncService: appContainer.librarySyncService)
         libraryStore.setActiveScope(appContainer.sessionManager.libraryScopeIdentifier)
 
         if environment["UI_TEST_RESET_LIBRARY"] == "1" {

@@ -1,1 +1,10 @@
 GoogleService-Info*.plist
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+
+# Xcode user-specific metadata
+*.xcuserdatad/
+*.xcuserstate

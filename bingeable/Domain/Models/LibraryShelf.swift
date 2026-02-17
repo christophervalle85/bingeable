@@ -1,6 +1,6 @@
 import Foundation
 
-enum LibraryShelf: String, Codable, CaseIterable, Hashable, Identifiable {
+enum LibraryShelf: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case waiting
     case watching
     case finished

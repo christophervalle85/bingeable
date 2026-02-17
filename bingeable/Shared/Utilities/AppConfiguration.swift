@@ -6,6 +6,9 @@ enum AppConfiguration {
         return environment["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
             || environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }()
+    nonisolated static let isRunningUnderXCTest: Bool = {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }()
 
     nonisolated static var tmdbAPIKey: String? {
         if let fromEnvironment = ProcessInfo.processInfo.environment["TMDB_API_KEY"], !fromEnvironment.isEmpty {

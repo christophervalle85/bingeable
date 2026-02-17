@@ -15,9 +15,10 @@ final class AppContainer: ObservableObject {
         self.regionCode = regionProvider.regionCode
 
         self.sessionManager = SessionManager()
-        self.librarySyncService = FirestoreLibrarySyncService()
         let environment = ProcessInfo.processInfo.environment
         let useFixtureRepositoryForUITests = environment["UI_TEST_USE_FIXTURE_REPOSITORY"] == "1"
+        let useLocalOnlySync = useFixtureRepositoryForUITests || AppConfiguration.isRunningInPreviewHost
+        self.librarySyncService = useLocalOnlySync ? NoopLibrarySyncService() : FirestoreLibrarySyncService()
 
         if useFixtureRepositoryForUITests
             || (AppConfiguration.isRunningInPreviewHost && AppConfiguration.discoverPreviewUseFixtureRepository) {

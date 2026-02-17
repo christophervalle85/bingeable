@@ -6,6 +6,16 @@ protocol LibrarySyncServicing {
     func remove(showID: Int, for userID: String) async throws
 }
 
+final class NoopLibrarySyncService: LibrarySyncServicing {
+    func fetchLibrary(for _: String) async throws -> [TrackedShow] {
+        []
+    }
+
+    func upsert(_: TrackedShow, for _: String) async throws {}
+
+    func remove(showID _: Int, for _: String) async throws {}
+}
+
 enum LibrarySyncServiceError: LocalizedError {
     case unavailable
     case invalidUserID
@@ -24,9 +34,14 @@ enum LibrarySyncServiceError: LocalizedError {
 import FirebaseFirestore
 
 final class FirestoreLibrarySyncService: LibrarySyncServicing {
-    private let firestore: Firestore
+    private let firestore: Firestore?
 
-    init(firestore: Firestore = Firestore.firestore()) {
+    init() {
+        guard FirebaseBootstrap.isConfigured else {
+            self.firestore = nil
+            return
+        }
+        let firestore = Firestore.firestore()
         self.firestore = firestore
 
 #if DEBUG
@@ -41,6 +56,7 @@ final class FirestoreLibrarySyncService: LibrarySyncServicing {
 
     func fetchLibrary(for userID: String) async throws -> [TrackedShow] {
         let normalizedUserID = try normalizedUserID(userID)
+        _ = try resolvedFirestore()
         let snapshot = try await libraryCollection(for: normalizedUserID).getDocuments()
 
         return snapshot.documents
@@ -50,12 +66,14 @@ final class FirestoreLibrarySyncService: LibrarySyncServicing {
 
     func upsert(_ trackedShow: TrackedShow, for userID: String) async throws {
         let normalizedUserID = try normalizedUserID(userID)
+        _ = try resolvedFirestore()
         let doc = libraryCollection(for: normalizedUserID).document(String(trackedShow.id))
         try await doc.setData(payload(from: trackedShow), merge: true)
     }
 
     func remove(showID: Int, for userID: String) async throws {
         let normalizedUserID = try normalizedUserID(userID)
+        _ = try resolvedFirestore()
         let doc = libraryCollection(for: normalizedUserID).document(String(showID))
         try await doc.delete()
     }
@@ -69,10 +87,19 @@ final class FirestoreLibrarySyncService: LibrarySyncServicing {
     }
 
     private func libraryCollection(for userID: String) -> CollectionReference {
-        firestore
+        let firestore = self.firestore ?? Firestore.firestore()
+        return firestore
             .collection("users")
             .document(userID)
             .collection("library")
+    }
+
+    private func resolvedFirestore() throws -> Firestore {
+        guard let firestore else {
+            throw LibrarySyncServiceError.unavailable
+        }
+
+        return firestore
     }
 
     private func payload(from trackedShow: TrackedShow) -> [String: Any] {
